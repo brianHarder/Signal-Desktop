@@ -699,10 +699,6 @@ type ReadableInterface = {
 
   getAllConversations: () => Array<ConversationType>;
   getAllConversationIds: () => Array<string>;
-  getAllGroupsInvolvingServiceId: (
-    serviceId: ServiceIdString
-  ) => Array<ConversationType>;
-
   getGroupSendCombinedEndorsementExpiration: (groupId: string) => number | null;
   getGroupSendEndorsementsData: (
     groupId: string
@@ -1045,6 +1041,11 @@ type WritableInterface = {
   updateCallLinkState(
     roomId: string,
     callLinkState: CallLinkStateType
+  ): CallLinkType;
+  updateCallLinkStateAndEpoch(
+    roomId: string,
+    callLinkState: CallLinkStateType,
+    epoch: string | null
   ): CallLinkType;
   beginDeleteAllCallLinks(): boolean;
   beginDeleteCallLink(roomId: string): boolean;

@@ -1,7 +1,7 @@
 // Copyright 2025 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { groupBy, sortBy } from 'lodash';
 
 import type { MutableRefObject, ReactNode } from 'react';
@@ -34,7 +34,10 @@ import { I18n } from './I18n';
 import { openLinkInWebBrowser } from '../util/openLinkInWebBrowser';
 import { DonationPrivacyInformationModal } from './DonationPrivacyInformationModal';
 import type { SubmitDonationType } from '../state/ducks/donations';
-import { getHumanDonationAmount } from '../util/currency';
+import {
+  getHumanDonationAmount,
+  toHumanCurrencyString,
+} from '../util/currency';
 import { Avatar, AvatarSize } from './Avatar';
 import type { BadgeType } from '../badges/types';
 import { DonationInterruptedModal } from './DonationInterruptedModal';
@@ -42,7 +45,15 @@ import { DonationErrorModal } from './DonationErrorModal';
 import { DonationVerificationModal } from './DonationVerificationModal';
 import { DonationProgressModal } from './DonationProgressModal';
 import { DonationStillProcessingModal } from './DonationStillProcessingModal';
+import { DonationThanksModal } from './DonationThanksModal';
+import type {
+  ConversationType,
+  ProfileDataType,
+} from '../state/ducks/conversations';
+import type { AvatarUpdateOptionsType } from '../types/Avatar';
+import { drop } from '../util/drop';
 import { DonationsOfflineTooltip } from './conversation/DonationsOfflineTooltip';
+import { getInProgressDonation } from '../util/donations';
 
 const log = createLogger('PreferencesDonations');
 
@@ -54,7 +65,6 @@ export type PropsDataType = {
   i18n: LocalizerType;
   initialCurrency: string;
   isOnline: boolean;
-  isStaging: boolean;
   page: SettingsPage;
   didResumeWorkflowAtStartup: boolean;
   lastError: DonationErrorType | undefined;
@@ -76,9 +86,22 @@ export type PropsDataType = {
     receipt: DonationReceipt,
     i18n: LocalizerType
   ) => Promise<Blob>;
+  showToast: (toast: AnyToast) => void;
+  donationBadge: BadgeType | undefined;
+  fetchBadgeData: () => Promise<BadgeType | undefined>;
+  me: ConversationType;
+  myProfileChanged: (
+    profileData: ProfileDataType,
+    avatarUpdateOptions: AvatarUpdateOptionsType
+  ) => void;
 };
 
 type PropsActionType = {
+  applyDonationBadge: (args: {
+    badge: BadgeType | undefined;
+    applyBadge: boolean;
+    onComplete: (error?: Error) => void;
+  }) => void;
   clearWorkflow: () => void;
   resumeWorkflow: () => void;
   setPage: (page: SettingsPage) => void;
@@ -100,8 +123,8 @@ type PreferencesHomeProps = Pick<
   | 'i18n'
   | 'setPage'
   | 'isOnline'
-  | 'isStaging'
   | 'donationReceipts'
+  | 'workflow'
 > & {
   navigateToPage: (newPage: SettingsPage) => void;
   renderDonationHero: () => JSX.Element;
@@ -183,9 +206,30 @@ function DonationsHome({
   navigateToPage,
   setPage,
   isOnline,
-  isStaging,
   donationReceipts,
+  workflow,
 }: PreferencesHomeProps): JSX.Element {
+  const [isInProgressModalVisible, setIsInProgressVisible] = useState(false);
+
+  const inProgressDonationAmount = useMemo<string | undefined>(() => {
+    const inProgressDonation = getInProgressDonation(workflow);
+    return inProgressDonation
+      ? toHumanCurrencyString(inProgressDonation)
+      : undefined;
+  }, [workflow]);
+
+  const handleDonateButtonClicked = useCallback(() => {
+    if (inProgressDonationAmount) {
+      setIsInProgressVisible(true);
+    } else {
+      setPage(SettingsPage.DonationsDonateFlow);
+    }
+  }, [inProgressDonationAmount, setPage]);
+
+  const handleInProgressDonationClicked = useCallback(() => {
+    setIsInProgressVisible(true);
+  }, []);
+
   const hasReceipts = donationReceipts.length > 0;
 
   const donateButton = (
@@ -194,9 +238,7 @@ function DonationsHome({
       disabled={!isOnline}
       variant={isOnline ? ButtonVariant.Primary : ButtonVariant.Secondary}
       size={ButtonSize.Medium}
-      onClick={() => {
-        setPage(SettingsPage.DonationsDonateFlow);
-      }}
+      onClick={handleDonateButtonClicked}
     >
       {i18n('icu:PreferencesDonations__donate-button')}
     </Button>
@@ -204,8 +246,16 @@ function DonationsHome({
 
   return (
     <div className="PreferencesDonations">
+      {isInProgressModalVisible && (
+        <DonationStillProcessingModal
+          i18n={i18n}
+          onClose={() => setIsInProgressVisible(false)}
+        />
+      )}
+
       {renderDonationHero()}
-      {isStaging && isOnline ? (
+
+      {isOnline ? (
         donateButton
       ) : (
         <DonationsOfflineTooltip i18n={i18n}>
@@ -215,10 +265,31 @@ function DonationsHome({
 
       <hr className="PreferencesDonations__separator" />
 
-      {hasReceipts && (
+      {(hasReceipts || inProgressDonationAmount) && (
         <div className="PreferencesDonations__section-header PreferencesDonations__section-header--my-support">
           {i18n('icu:PreferencesDonations__my-support')}
         </div>
+      )}
+
+      {inProgressDonationAmount && (
+        <ListBox className="PreferencesDonations__badge-list">
+          <ListBoxItem
+            className="PreferencesDonations__badge"
+            onAction={handleInProgressDonationClicked}
+          >
+            <div className="PreferencesDonations__badge-icon PreferencesDonations__badge-icon--one-time" />
+            <div className="PreferencesDonations__badge-info">
+              <div className="PreferencesDonations__badge-label">
+                {i18n('icu:PreferencesDonations__badge-label-one-time', {
+                  formattedCurrencyAmount: inProgressDonationAmount,
+                })}
+              </div>
+              <div className="PreferencesDonations__badge-processing-info">
+                {i18n('icu:PreferencesDonations__badge-processing-donation')}
+              </div>
+            </div>
+          </ListBoxItem>
+        </ListBox>
       )}
 
       <ListBox className="PreferencesDonations__list">
@@ -473,11 +544,11 @@ export function PreferencesDonations({
   i18n,
   initialCurrency,
   isOnline,
-  isStaging,
   page,
   workflow,
   didResumeWorkflowAtStartup,
   lastError,
+  applyDonationBadge,
   clearWorkflow,
   resumeWorkflow,
   setPage,
@@ -494,10 +565,24 @@ export function PreferencesDonations({
   generateDonationReceiptBlob,
   showToast,
   updateLastError,
+  donationBadge,
+  fetchBadgeData,
 }: PropsType): JSX.Element | null {
   const [hasProcessingExpired, setHasProcessingExpired] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+
   const [isPrivacyModalVisible, setIsPrivacyModalVisible] = useState(false);
+
+  // Fetch badge data when we're about to show the badge modal
+  useEffect(() => {
+    if (
+      workflow?.type === donationStateSchema.Enum.DONE &&
+      page === SettingsPage.Donations &&
+      !donationBadge
+    ) {
+      drop(fetchBadgeData());
+    }
+  }, [workflow, page, donationBadge, fetchBadgeData]);
 
   const navigateToPage = useCallback(
     (newPage: SettingsPage) => {
@@ -586,6 +671,27 @@ export function PreferencesDonations({
         }}
       />
     );
+  } else if (workflow?.type === donationStateSchema.Enum.DONE) {
+    dialog = (
+      <DonationThanksModal
+        i18n={i18n}
+        badge={donationBadge}
+        applyDonationBadge={applyDonationBadge}
+        onClose={(error?: Error) => {
+          clearWorkflow();
+          if (error) {
+            log.error('Badge application failed:', error.message);
+            showToast({
+              toastType: ToastType.DonationCompletedAndBadgeApplicationFailed,
+            });
+          } else {
+            showToast({
+              toastType: ToastType.DonationCompleted,
+            });
+          }
+        }}
+      />
+    );
   } else if (
     page === SettingsPage.DonationsDonateFlow &&
     (isSubmitted ||
@@ -663,9 +769,9 @@ export function PreferencesDonations({
         isOnline={isOnline}
         navigateToPage={navigateToPage}
         donationReceipts={donationReceipts}
-        isStaging={isStaging}
         renderDonationHero={renderDonationHero}
         setPage={setPage}
+        workflow={workflow}
       />
     );
   } else if (page === SettingsPage.DonationsReceiptList) {

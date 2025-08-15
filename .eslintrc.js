@@ -104,7 +104,7 @@ const rules = {
   // Prefer functional components with default params
   'react/require-default-props': 'off',
 
-  // Empty fragments are used in adapters between backbone and react views.
+  // Empty fragments are used in adapters between models and react views.
   'react/jsx-no-useless-fragment': [
     'error',
     {
@@ -179,6 +179,7 @@ const rules = {
       additionalHooks: '^(useSpring|useSprings)$',
     },
   ],
+  'local-rules/license-comments': 'error',
 };
 
 const typescriptRules = {
@@ -318,15 +319,19 @@ module.exports = {
       },
     },
     {
-      files: ['ts/axo/**/*.tsx'],
+      files: ['ts/**/*.tsx'],
       plugins: ['better-tailwindcss'],
       settings: {
         'better-tailwindcss': {
-          entryPoint: './ts/axo/tailwind.css',
-          callees: ['css'],
+          entryPoint: './stylesheets/tailwind-config.css',
+          callees: ['tw'],
+          attributes: [],
+          variables: [],
         },
       },
       rules: {
+        'local-rules/enforce-tw': 'error',
+
         // stylistic: Enforce consistent line wrapping for tailwind classes. (recommended, autofix)
         'better-tailwindcss/enforce-consistent-line-wrapping': 'off',
         // stylistic: Enforce a consistent order for tailwind classes. (recommended, autofix)

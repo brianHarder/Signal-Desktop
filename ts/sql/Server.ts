@@ -221,6 +221,7 @@ import {
   insertOrUpdateCallLinkFromSync,
   updateCallLink,
   updateCallLinkState,
+  updateCallLinkStateAndEpoch,
   updateDefunctCallLink,
 } from './server/callLinks';
 import {
@@ -371,7 +372,6 @@ export const DataReader: ServerReadableInterface = {
 
   getAllConversations,
   getAllConversationIds,
-  getAllGroupsInvolvingServiceId,
 
   getGroupSendCombinedEndorsementExpiration,
   getGroupSendEndorsementsData,
@@ -569,6 +569,7 @@ export const DataWriter: ServerWritableInterface = {
   insertOrUpdateCallLinkFromSync,
   updateCallLink,
   updateCallLinkState,
+  updateCallLinkStateAndEpoch,
   beginDeleteAllCallLinks,
   beginDeleteCallLink,
   deleteCallHistoryByRoomId,
@@ -1903,8 +1904,8 @@ function getConversationById(
   const row = db
     .prepare(
       `
-      SELECT json, profileLastFetchedAt, expireTimerVersion 
-      FROM conversations 
+      SELECT json, profileLastFetchedAt, expireTimerVersion
+      FROM conversations
       WHERE id = $id
       `
     )
@@ -1941,27 +1942,6 @@ function getAllConversationIds(db: ReadableDB): Array<string> {
     .all();
 
   return rows.map(row => row.id);
-}
-
-function getAllGroupsInvolvingServiceId(
-  db: ReadableDB,
-  serviceId: ServiceIdString
-): Array<ConversationType> {
-  const rows: ConversationRows = db
-    .prepare(
-      `
-      SELECT json, profileLastFetchedAt, expireTimerVersion
-      FROM conversations WHERE
-        type = 'group' AND
-        members LIKE $serviceId
-      ORDER BY id ASC;
-      `
-    )
-    .all({
-      serviceId: `%${serviceId}%`,
-    });
-
-  return rows.map(row => rowToConversation(row));
 }
 
 function searchMessages(
@@ -2692,9 +2672,9 @@ function saveMessageAttachment({
 
   db.prepare(
     `
-        INSERT OR REPLACE INTO message_attachments 
-          (${MESSAGE_ATTACHMENT_COLUMNS.join(', ')}) 
-        VALUES 
+        INSERT OR REPLACE INTO message_attachments
+          (${MESSAGE_ATTACHMENT_COLUMNS.join(', ')})
+        VALUES
           (${MESSAGE_ATTACHMENT_COLUMNS.map(name => `$${name}`).join(', ')});
       `
   ).run(values);
@@ -5530,7 +5510,7 @@ function removeAllBackupAttachmentDownloadJobs(db: WritableDB): void {
 
 function resetBackupAttachmentDownloadStats(db: WritableDB): void {
   const [query, params] = sql`
-    INSERT OR REPLACE INTO attachment_downloads_backup_stats 
+    INSERT OR REPLACE INTO attachment_downloads_backup_stats
       (id, totalBytes, completedBytes)
     VALUES
       (0,0,0);
@@ -5729,11 +5709,11 @@ function saveAttachmentDownloadJob(
     db.prepare(
       `
       INSERT INTO attachment_downloads
-        (${ATTACHMENT_DOWNLOADS_COLUMNS.join(', ')}) 
-      VALUES 
+        (${ATTACHMENT_DOWNLOADS_COLUMNS.join(', ')})
+      VALUES
         (${ATTACHMENT_DOWNLOADS_COLUMNS.map(name => `$${name}`).join(', ')})
-      ON CONFLICT DO UPDATE SET 
-          -- preserve originalSource 
+      ON CONFLICT DO UPDATE SET
+          -- preserve originalSource
           ${ATTACHMENT_DOWNLOADS_COLUMNS.filter(
             name => name !== 'originalSource'
           )
@@ -5924,7 +5904,7 @@ function getBackupCdnObjectMetadata(
   mediaId: string
 ): BackupCdnMediaObjectType | undefined {
   const [query, params] = sql`
-    SELECT * FROM backup_cdn_object_metadata 
+    SELECT * FROM backup_cdn_object_metadata
     WHERE mediaId = ${mediaId}
   `;
 
@@ -6278,26 +6258,35 @@ function addStickerPackReference(
     );
   }
 
-  db.prepare(
-    `
-    INSERT OR REPLACE INTO sticker_references (
-      messageId,
-      packId,
-      stickerId,
-      isUnresolved
-    ) values (
-      $messageId,
-      $packId,
-      $stickerId,
-      $isUnresolved
-    )
-    `
-  ).run({
-    messageId,
-    packId,
-    stickerId,
-    isUnresolved: isUnresolved ? 1 : 0,
-  });
+  db.transaction(() => {
+    const [select, selectParams] = sql`
+      SELECT EXISTS (
+        SELECT 1 FROM sticker_packs WHERE id IS ${packId}
+      )
+    `;
+    const exists =
+      db.prepare(select, { pluck: true }).get<number>(selectParams) === 1;
+    if (!exists) {
+      logger.warn('addStickerPackReference: did not find referenced pack');
+      return;
+    }
+
+    const [insert, insertParams] = sql`
+      INSERT OR REPLACE INTO sticker_references (
+        messageId,
+        packId,
+        stickerId,
+        isUnresolved
+      ) values (
+        ${messageId},
+        ${packId},
+        ${stickerId},
+        ${isUnresolved ? 1 : 0}
+      )
+    `;
+
+    db.prepare(insert).run(insertParams);
+  })();
 }
 function deleteStickerPackReference(
   db: WritableDB,
@@ -7639,7 +7628,7 @@ function removeAll(db: WritableDB): void {
 
       INSERT INTO messages_fts(messages_fts) VALUES('optimize');
 
-    
+
       --- Re-create the messages delete trigger
       --- See migration 45
       CREATE TRIGGER messages_on_delete AFTER DELETE ON messages BEGIN
@@ -7706,7 +7695,7 @@ function removeAllConfiguration(db: WritableDB): void {
     const [updateConversationsQuery, updateConversationsParams] = sql`
       UPDATE conversations
       SET
-        expireTimerVersion = ${INITIAL_EXPIRE_TIMER_VERSION}, 
+        expireTimerVersion = ${INITIAL_EXPIRE_TIMER_VERSION},
         json = json_remove(
           json,
           '$.senderKeyInfo',
@@ -8360,10 +8349,10 @@ function wasGroupCallRingPreviouslyCanceled(
           bigint: true,
         }
       )
-      .get<number>({
+      .get<bigint>({
         ringId,
         ringsOlderThanThisAreIgnored: Date.now() - MAX_GROUP_CALL_RING_AGE,
-      }) === 1
+      }) === 1n
   );
 }
 
@@ -8585,8 +8574,8 @@ function getMessageCountBySchemaVersion(
   db: ReadableDB
 ): MessageCountBySchemaVersionType {
   const [query, params] = sql`
-    SELECT schemaVersion, COUNT(1) as count from messages 
-    GROUP BY schemaVersion; 
+    SELECT schemaVersion, COUNT(1) as count from messages
+    GROUP BY schemaVersion;
   `;
   const rows = db
     .prepare(query)
@@ -8601,7 +8590,7 @@ function getMessageSampleForSchemaVersion(
 ): Array<MessageAttributesType> {
   return db.transaction(() => {
     const [query, params] = sql`
-      SELECT * from messages 
+      SELECT * from messages
       WHERE schemaVersion = ${version}
       ORDER BY RANDOM()
       LIMIT 2;

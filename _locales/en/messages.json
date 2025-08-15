@@ -2968,6 +2968,10 @@
     "messageformat": "View-once Video",
     "description": "Shown in notifications and in the left pane when a message is a view once video. Also shown when quoting a view once video."
   },
+  "icu:message--getDescription--gif": {
+    "messageformat": "GIF",
+    "description": "Shown when quoting a GIF."
+  },
   "icu:message--deletedForEveryone": {
     "messageformat": "This message was deleted.",
     "description": "Shown in a message's bubble when the message has been deleted for everyone."
@@ -4679,6 +4683,18 @@
   "icu:ErrorModal--description": {
     "messageformat": "Please try again or contact support.",
     "description": "Description text in popup dialog when user-initiated task has gone wrong"
+  },
+  "icu:DebugLogErrorModal__UnexpectedError": {
+    "messageformat": "An unexpected error occurred",
+    "description": "Title of the dialog shown when an unexpected user interface or coding bug occurs. The dialog's description text requests the user to submit debug logs."
+  },
+  "icu:DebugLogErrorModal__SubmitDebugLog": {
+    "messageformat": "Submit debug log",
+    "description": "Primary button text in the dialog shown when an unexpected user interface or coding bug occurs. Clicking the button will open the Debug Log submission dialog."
+  },
+  "icu:DebugLogErrorModal__SubmitDebugLog__Cancel": {
+    "messageformat": "No thanks",
+    "description": "Secondary button text in the dialog shown when an unexpected user interface or coding bug occurs. Clicking the button will dismiss the error dialog."
   },
   "icu:Confirmation--confirm": {
     "messageformat": "Okay",
@@ -6988,6 +7004,14 @@
     "messageformat": "For example, :-) will be converted to <emojify>🙂</emojify>",
     "description": "Description for the auto convert emoji setting"
   },
+  "icu:Preferences__keep-muted-chats-archived--title": {
+    "messageformat": "Keep muted chats archived",
+    "description": "Title for the setting that prevents muted chats from being unarchived when new messages arrive"
+  },
+  "icu:Preferences__keep-muted-chats-archived--description": {
+    "messageformat": "Muted chats that are archived will remain archived when a new message arrives.",
+    "description": "Description for the setting that prevents muted chats from being unarchived"
+  },
   "icu:Preferences--advanced": {
     "messageformat": "Advanced",
     "description": "Title for advanced settings"
@@ -8826,6 +8850,14 @@
     "messageformat": "My Support",
     "description": "Section header for the user's current donations"
   },
+  "icu:PreferencesDonations__badge-label-one-time": {
+    "messageformat": "{formattedCurrencyAmount} one-time",
+    "description": "Label next to the in-app badge associated with a donation amount and type. Amount includes the currency symbol and is formatted in the locale's standard format. The hyphen between one-time is optional depending on language norms. Examples: $10 one-time; ¥1000 one-time; €10 one-time"
+  },
+  "icu:PreferencesDonations__badge-processing-donation": {
+    "messageformat": "Processing donation...",
+    "description": "Label next to the in-app badge associated with a donation while the donation is still processing and the badge is not yet available to the user."
+  },
   "icu:PreferencesDonations__donate-button-with-amount": {
     "messageformat": "Donate {formattedCurrencyAmount}",
     "description": "Button text to make a donation after selecting a currency amount. Amount includes the currency symbol and is formatted in the locale's standard format. Examples: Donate $10; Donate ¥1000; Donate €10"
@@ -8990,6 +9022,10 @@
     "messageformat": "You have a donation in progress that requires confirmation.",
     "description": "Shown when the user is not on the Preferences/Donations screen, and donation verification is needed. Like when resuming from startup."
   },
+  "icu:Donations__Toast__DonationCompletedAndBadgeApplicationFailed": {
+    "messageformat": "Donation succeeded, but we could not update your badge settings",
+    "description": "Toast shown when donation completes successfully but badge application fails"
+  },
   "icu:Donations__DonationInterrupted": {
     "messageformat": "Donation interrupted",
     "description": "Title of the dialog shown when starting up if a donation had been started, and we've saved payment information, but the charge hasn't happened yet"
@@ -9020,18 +9056,22 @@
   },
   "icu:Donations__GenericError": {
     "messageformat": "An error occurred with your donation",
-    "description": "Title of the dialog shown when some unknown error has happened during a user's attempted donation"
+    "description": "Title of the dialog shown when some unknown error has happened during a user's attempted donation. This will show when we detect an error but haven't designed a string for the error type."
   },
   "icu:Donations__GenericError__Description": {
     "messageformat": "Your donation might not have been processed. Click on “Donate to Signal” and then “Donation Receipts” to check your receipts and confirm.",
     "description": "An explanation for the 'error occurred' dialog"
+  },
+  "icu:DonationsErrorBoundary__DonationUnexpectedError": {
+    "messageformat": "Try again or submit a debug log to Support for help completing your donation. Debug logs helps us diagnose and fix the issue, and do not contain identifying information.",
+    "description": "Description of the dialog shown when an unexpected user interface or coding bug occurs while using a donations-related part of the app."
   },
   "icu:Donations__Processing": {
     "messageformat": "Processing donation...",
     "description": "Explainer text for donation progress dialog"
   },
   "icu:Donations__StillProcessing": {
-    "messageformat": "Still processing",
+    "messageformat": "Still processing donation",
     "description": "Title of the dialog shown when the user has made a donation and it's taking some time to complete the process"
   },
   "icu:Donations__StillProcessing__Description": {
@@ -9069,6 +9109,22 @@
   "icu:Donations__3dsValidationNeeded__CancelDonation": {
     "messageformat": "Cancel donation",
     "description": "When external payment method validation is required, this button will open that external verification website"
+  },
+  "icu:Donations__badge-modal--title": {
+    "messageformat": "Thanks for your support!",
+    "description": "Title shown in the 'thanks for your donation' modal"
+  },
+  "icu:Donations__badge-modal--description": {
+    "messageformat": "You've earned a donor badge from Signal! Display it on your profile to show off your support.",
+    "description": "Description explaining the donor badge in the 'thanks for your donation' modal"
+  },
+  "icu:Donations__badge-modal--display-on-profile": {
+    "messageformat": "Display on profile",
+    "description": "Toggle label for displaying the donation badge on user's profile in the 'thanks for your donation' modal"
+  },
+  "icu:Donations__badge-modal--help-text": {
+    "messageformat": "You can adjust this on your mobile device under Settings → Donate to Signal → Badges",
+    "description": "Help text below the toggle in donation thank you modal"
   },
   "icu:WhatsNew__bugfixes": {
     "messageformat": "This version contains a number of small tweaks and bug fixes to keep Signal running smoothly.",
@@ -9115,6 +9171,10 @@
   },
   "icu:WhatsNew__v7.66--0": {
     "messageformat": "This update fixes a few small bugs, including one where emoji reactions weren't being grouped together correctly in some cases.",
-    "description": "Release notes for version 7.65"
+    "description": "(Deleted 2025/08/13) Release notes for version 7.65"
+  },
+  "icu:WhatsNew__v7.67--0": {
+    "messageformat": "We fixed a bug that prevented donation badges from appearing correctly for some users. Signal is a 501c3 nonprofit, and we appreciate your support!",
+    "description": "Release notes for version 7.67"
   }
 }

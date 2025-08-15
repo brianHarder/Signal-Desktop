@@ -470,7 +470,7 @@ async function _promiseAjax<Type extends ResponseType, OutputShape>(
 
     if (!unauthenticated && response.status === 401) {
       log.warn('Got 401 from Signal Server. We might be unlinked.');
-      window.Whisper.events.trigger('mightBeUnlinked');
+      window.Whisper.events.emit('mightBeUnlinked');
     }
   }
 
@@ -849,14 +849,9 @@ export type WebAPIConnectType = {
 // When updating this make sure to update `observedCapabilities` type in
 // ts/types/Storage.d.ts
 export type CapabilitiesType = {
-  deleteSync: boolean;
-  ssre2: boolean;
   attachmentBackfill: boolean;
 };
 export type CapabilitiesUploadType = {
-  deleteSync: true;
-  versionedExpirationTimer: true;
-  ssre2: true;
   attachmentBackfill: true;
 };
 
@@ -2053,23 +2048,23 @@ export function initialize({
     });
 
     socketManager.on('statusChange', () => {
-      window.Whisper.events.trigger('socketStatusChange');
+      window.Whisper.events.emit('socketStatusChange');
     });
 
     socketManager.on('online', () => {
-      window.Whisper.events.trigger('online');
+      window.Whisper.events.emit('online');
     });
 
     socketManager.on('offline', () => {
-      window.Whisper.events.trigger('offline');
+      window.Whisper.events.emit('offline');
     });
 
     socketManager.on('authError', () => {
-      window.Whisper.events.trigger('unlinkAndDisconnect');
+      window.Whisper.events.emit('unlinkAndDisconnect');
     });
 
     socketManager.on('firstEnvelope', incoming => {
-      window.Whisper.events.trigger('firstEnvelope', incoming);
+      window.Whisper.events.emit('firstEnvelope', incoming);
     });
 
     socketManager.on('serverAlerts', alerts => {
@@ -3206,9 +3201,6 @@ export function initialize({
       }
 
       const capabilities: CapabilitiesUploadType = {
-        deleteSync: true,
-        versionedExpirationTimer: true,
-        ssre2: true,
         attachmentBackfill: true,
       };
 
@@ -3273,9 +3265,6 @@ export function initialize({
       pniPqLastResortPreKey,
     }: LinkDeviceOptionsType) {
       const capabilities: CapabilitiesUploadType = {
-        deleteSync: true,
-        versionedExpirationTimer: true,
-        ssre2: true,
         attachmentBackfill: true,
       };
 

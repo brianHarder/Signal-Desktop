@@ -118,7 +118,10 @@ import {
   fromAdminKeyBytes,
   toCallHistoryFromUnusedCallLink,
 } from '../../util/callLinks';
-import { getRoomIdFromRootKey } from '../../util/callLinksRingrtc';
+import {
+  getRoomIdFromRootKey,
+  fromEpochBytes,
+} from '../../util/callLinksRingrtc';
 import { loadAllAndReinitializeRedux } from '../allLoaders';
 import {
   resetBackupMediaDownloadProgress,
@@ -700,8 +703,9 @@ export class BackupImportStream extends Writable {
     svrPin,
   }: Backups.IAccountData): Promise<void> {
     strictAssert(this.#ourConversation === undefined, 'Duplicate AccountData');
-    const me =
-      window.ConversationController.getOurConversationOrThrow().attributes;
+    const me = {
+      ...window.ConversationController.getOurConversationOrThrow().attributes,
+    };
     this.#ourConversation = me;
 
     const { storage } = window;
@@ -1290,6 +1294,7 @@ export class BackupImportStream extends Writable {
   ): Promise<void> {
     const {
       rootKey: rootKeyBytes,
+      epoch,
       adminKey,
       name,
       restrictions,
@@ -1304,6 +1309,7 @@ export class BackupImportStream extends Writable {
     const callLink: CallLinkType = {
       roomId: getRoomIdFromRootKey(rootKey),
       rootKey: rootKey.toString(),
+      epoch: epoch?.length ? fromEpochBytes(epoch) : null,
       adminKey: adminKey?.length ? fromAdminKeyBytes(adminKey) : null,
       name,
       restrictions: fromCallLinkRestrictionsProto(restrictions),

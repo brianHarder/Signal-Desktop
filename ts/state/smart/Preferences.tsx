@@ -84,6 +84,7 @@ import {
   resumeBackupMediaDownload,
   cancelBackupMediaDownload,
 } from '../../util/backupMediaDownload';
+import { DonationsErrorBoundary } from '../../components/DonationsErrorBoundary';
 
 const DEFAULT_NOTIFICATION_SETTING = 'message';
 
@@ -115,11 +116,13 @@ function renderDonationsPane({
   setPage: (page: SettingsPage) => void;
 }): JSX.Element {
   return (
-    <SmartPreferencesDonations
-      contentsRef={contentsRef}
-      page={page}
-      setPage={setPage}
-    />
+    <DonationsErrorBoundary>
+      <SmartPreferencesDonations
+        contentsRef={contentsRef}
+        page={page}
+        setPage={setPage}
+      />
+    </DonationsErrorBoundary>
   );
 }
 
@@ -560,6 +563,11 @@ export function SmartPreferences(): JSX.Element | null {
     'autoConvertEmoji',
     true
   );
+  const [hasKeepMutedChatsArchived, onKeepMutedChatsArchivedChange] =
+    createItemsAccess('keepMutedChatsArchived', false, () => {
+      const account = window.ConversationController.getOurConversationOrThrow();
+      account.captureChange('keepMutedChatsArchived');
+    });
   const [hasAutoDownloadUpdate, onAutoDownloadUpdateChange] = createItemsAccess(
     'auto-download-update',
     true
@@ -574,7 +582,7 @@ export function SmartPreferences(): JSX.Element | null {
     createItemsAccess('call-ringtone-notification', true);
   const [hasCountMutedConversations, onCountMutedConversationsChange] =
     createItemsAccess('badge-count-muted-conversations', false, () => {
-      window.Whisper.events.trigger('updateUnreadCount');
+      window.Whisper.events.emit('updateUnreadCount');
     });
   const [hasHideMenuBar, onHideMenuBarChange] = createItemsAccess(
     'hide-menu-bar',
@@ -751,6 +759,7 @@ export function SmartPreferences(): JSX.Element | null {
         hasAutoConvertEmoji={hasAutoConvertEmoji}
         hasAutoDownloadUpdate={hasAutoDownloadUpdate}
         hasAutoLaunch={hasAutoLaunch}
+        hasKeepMutedChatsArchived={hasKeepMutedChatsArchived}
         hasCallNotifications={hasCallNotifications}
         hasCallRingtoneNotification={hasCallRingtoneNotification}
         hasContentProtection={hasContentProtection}
@@ -807,6 +816,7 @@ export function SmartPreferences(): JSX.Element | null {
         onHasStoriesDisabledChanged={onHasStoriesDisabledChanged}
         onHideMenuBarChange={onHideMenuBarChange}
         onIncomingCallNotificationsChange={onIncomingCallNotificationsChange}
+        onKeepMutedChatsArchivedChange={onKeepMutedChatsArchivedChange}
         onLastSyncTimeChange={onLastSyncTimeChange}
         onLocaleChange={onLocaleChange}
         onMediaCameraPermissionsChange={onMediaCameraPermissionsChange}

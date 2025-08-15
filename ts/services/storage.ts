@@ -82,7 +82,10 @@ import {
   getRoomIdFromRootKeyString,
 } from '../util/callLinksRingrtc';
 import { fromPniUuidBytesOrUntaggedString } from '../util/ServiceId';
+import { isDone as isRegistrationDone } from '../util/registration';
 import { callLinkRefreshJobQueue } from '../jobs/callLinkRefreshJobQueue';
+import { isMockEnvironment } from '../environment';
+import { validateConversation } from '../util/validateConversation';
 
 const log = createLogger('storage');
 
@@ -239,9 +242,9 @@ async function generateManifest(
     };
   }
 
-  const conversations = window.getConversations();
+  const conversations = window.ConversationController.getAll();
   for (let i = 0; i < conversations.length; i += 1) {
-    const conversation = conversations.models[i];
+    const conversation = conversations[i];
 
     let identifierType;
     let storageRecord;
@@ -265,10 +268,12 @@ async function generateManifest(
       let shouldDrop = false;
       let dropReason: string | undefined;
 
-      const validationError = conversation.validate();
-      if (validationError) {
+      const validationErrorString = validateConversation(
+        conversation.attributes
+      );
+      if (validationErrorString) {
         shouldDrop = true;
-        dropReason = `local validation error=${validationError}`;
+        dropReason = `local validation error=${validationErrorString}`;
       } else if (conversation.isUnregisteredAndStale()) {
         shouldDrop = true;
         dropReason = 'unregistered and stale';
@@ -292,7 +297,7 @@ async function generateManifest(
             `dropping contact=${recordID} ` +
             `due to ${dropReason}`
         );
-        conversation.unset('storageID');
+        conversation.set({ storageID: undefined });
         deleteKeys.add(droppedID);
         continue;
       }
@@ -1265,7 +1270,7 @@ async function processManifest(
   const localVersions = new Map<string, number | undefined>();
   let localRecordCount = 0;
 
-  const conversations = window.getConversations();
+  const conversations = window.ConversationController.getAll();
   conversations.forEach((conversation: ConversationModel) => {
     const storageID = conversation.get('storageID');
     if (storageID) {
@@ -1385,44 +1390,45 @@ async function processManifest(
   // new storageID for that record, and upload.
   // This might happen if a device pushes a manifest which doesn't contain
   // the keys that we have in our local database.
-  window.getConversations().forEach((conversation: ConversationModel) => {
-    const storageID = conversation.get('storageID');
-    if (storageID && !remoteKeys.has(storageID)) {
-      const storageVersion = conversation.get('storageVersion');
-      const missingKey = redactStorageID(
-        storageID,
-        storageVersion,
-        conversation
-      );
-
-      // Remote might have dropped this conversation already, but our value of
-      // `firstUnregisteredAt` is too high for us to drop it. Don't reupload it!
-      if (
-        isDirectConversation(conversation.attributes) &&
-        conversation.isUnregistered()
-      ) {
-        log.info(
-          `process(${version}): localKey=${missingKey} is ` +
-            'unregistered and not in remote manifest'
+  window.ConversationController.getAll().forEach(
+    (conversation: ConversationModel) => {
+      const storageID = conversation.get('storageID');
+      if (storageID && !remoteKeys.has(storageID)) {
+        const storageVersion = conversation.get('storageVersion');
+        const missingKey = redactStorageID(
+          storageID,
+          storageVersion,
+          conversation
         );
-        conversation.setUnregistered({
-          timestamp: Date.now() - getMessageQueueTime(),
-          fromStorageService: true,
 
-          // Saving below
-          shouldSave: false,
-        });
-      } else {
-        log.info(
-          `process(${version}): localKey=${missingKey} ` +
-            'was not in remote manifest'
-        );
+        // Remote might have dropped this conversation already, but our value of
+        // `firstUnregisteredAt` is too high for us to drop it. Don't reupload it!
+        if (
+          isDirectConversation(conversation.attributes) &&
+          conversation.isUnregistered()
+        ) {
+          log.info(
+            `process(${version}): localKey=${missingKey} is ` +
+              'unregistered and not in remote manifest'
+          );
+          conversation.setUnregistered({
+            timestamp: Date.now() - getMessageQueueTime(),
+            fromStorageService: true,
+
+            // Saving below
+            shouldSave: false,
+          });
+        } else {
+          log.info(
+            `process(${version}): localKey=${missingKey} ` +
+              'was not in remote manifest'
+          );
+        }
+        conversation.set({ storageID: undefined, storageVersion: undefined });
+        drop(updateConversation(conversation.attributes));
       }
-      conversation.unset('storageID');
-      conversation.unset('storageVersion');
-      drop(updateConversation(conversation.attributes));
     }
-  });
+  );
 
   // Refetch various records post-merge
   {
@@ -2083,7 +2089,6 @@ async function upload({
   if (!window.storage.get('storageKey')) {
     // requesting new keys runs the sync job which will detect the conflict
     // and re-run the upload job once we're merged and up-to-date.
-    log.info(`${logId}: no storageKey, requesting new keys`);
     backOff.reset();
 
     if (window.ConversationController.areWePrimaryDevice()) {
@@ -2091,6 +2096,12 @@ async function upload({
       return;
     }
 
+    if (!isRegistrationDone()) {
+      log.warn(`${logId}: no storageKey, unlinked`);
+      return;
+    }
+
+    log.info(`${logId}: no storageKey, requesting new keys`);
     await singleProtoJobQueue.add(MessageSender.getRequestKeySyncMessage());
 
     return;
@@ -2185,10 +2196,12 @@ export async function eraseAllStorageServiceState({
   window.reduxActions.user.eraseStorageServiceState();
 
   // Conversations. These properties are not present in redux.
-  window.getConversations().forEach(conversation => {
-    conversation.unset('storageID');
-    conversation.unset('needsStorageServiceSync');
-    conversation.unset('storageUnknownFields');
+  window.ConversationController.getAll().forEach(conversation => {
+    conversation.set({
+      storageID: undefined,
+      needsStorageServiceSync: undefined,
+      storageUnknownFields: undefined,
+    });
   });
 
   // Then make sure outstanding conversation saves are flushed
@@ -2267,7 +2280,7 @@ export const storageServiceUploadJob = debounce(
       `upload v${window.storage.get('manifestVersion')}`
     );
   },
-  500
+  isMockEnvironment() ? 0 : 500
 );
 
 export const runStorageServiceSyncJob = debounce(
@@ -2283,13 +2296,13 @@ export const runStorageServiceSyncJob = debounce(
           await sync({ reason });
 
           // Notify listeners about sync completion
-          window.Whisper.events.trigger('storageService:syncComplete');
+          window.Whisper.events.emit('storageService:syncComplete');
         },
         `sync v${window.storage.get('manifestVersion')}`
       )
     );
   },
-  500
+  isMockEnvironment() ? 0 : 500
 );
 
 export const addPendingDelete = (item: ExtendedStorageID): void => {
