@@ -1,7 +1,7 @@
 // Copyright 2024 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import React, { StrictMode, useEffect } from 'react';
+import React, { StrictMode, useCallback, useEffect } from 'react';
 import { useSelector } from 'react-redux';
 
 import type { AudioDevice } from '@signalapp/ringrtc';
@@ -10,8 +10,6 @@ import type { MutableRefObject } from 'react';
 import { useItemsActions } from '../ducks/items';
 import { useConversationsActions } from '../ducks/conversations';
 import {
-  getAllComposableConversations,
-  getConversationSelector,
   getConversationsWithCustomColorSelector,
   getMe,
 } from '../selectors/conversations';
@@ -85,6 +83,10 @@ import {
   cancelBackupMediaDownload,
 } from '../../util/backupMediaDownload';
 import { DonationsErrorBoundary } from '../../components/DonationsErrorBoundary';
+import type { SmartPreferencesChatFoldersPageProps } from './PreferencesChatFoldersPage';
+import { SmartPreferencesChatFoldersPage } from './PreferencesChatFoldersPage';
+import type { SmartPreferencesEditChatFolderPageProps } from './PreferencesEditChatFolderPage';
+import { SmartPreferencesEditChatFolderPage } from './PreferencesEditChatFolderPage';
 
 const DEFAULT_NOTIFICATION_SETTING = 'message';
 
@@ -92,6 +94,18 @@ function renderUpdateDialog(
   props: Readonly<{ containerWidthBreakpoint: WidthBreakpoint }>
 ): JSX.Element {
   return <SmartUpdateDialog {...props} disableDismiss />;
+}
+
+function renderPreferencesChatFoldersPage(
+  props: SmartPreferencesChatFoldersPageProps
+): JSX.Element {
+  return <SmartPreferencesChatFoldersPage {...props} />;
+}
+
+function renderPreferencesEditChatFolderPage(
+  props: SmartPreferencesEditChatFolderPageProps
+): JSX.Element {
+  return <SmartPreferencesEditChatFolderPage {...props} />;
 }
 
 function renderProfileEditor(options: {
@@ -180,8 +194,6 @@ export function SmartPreferences(): JSX.Element | null {
     getConversationsWithCustomColorSelector
   );
   const i18n = useSelector(getIntl);
-  const conversations = useSelector(getAllComposableConversations);
-  const conversationSelector = useSelector(getConversationSelector);
   const items = useSelector(getItems);
   const hasFailedStorySends = useSelector(getHasAnyFailedStorySends);
   const dialogType = useSelector(getUpdateDialogType);
@@ -525,8 +537,8 @@ export function SmartPreferences(): JSX.Element | null {
   const backupFeatureEnabled = isBackupFeatureEnabled(items.remoteConfig);
   const backupLocalBackupsEnabled = isLocalBackupsEnabled(items.remoteConfig);
   const donationsFeatureEnabled =
-    items.remoteConfig?.['desktop.internalUser']?.enabled ??
-    items.remoteConfig?.['desktop.donations']?.enabled ??
+    (items.remoteConfig?.['desktop.internalUser']?.enabled ||
+      items.remoteConfig?.['desktop.donations']?.enabled) ??
     false;
 
   // Two-way items
@@ -686,6 +698,15 @@ export function SmartPreferences(): JSX.Element | null {
     }
   );
 
+  const __dangerouslyRunAbitraryReadOnlySqlQuery = useCallback(
+    (readOnlySqlQuery: string) => {
+      return DataReader.__dangerouslyRunAbitraryReadOnlySqlQuery(
+        readOnlySqlQuery
+      );
+    },
+    []
+  );
+
   if (currentLocation.tab !== NavTab.Settings) {
     return null;
   }
@@ -716,8 +737,6 @@ export function SmartPreferences(): JSX.Element | null {
   return (
     <StrictMode>
       <Preferences
-        conversations={conversations}
-        conversationSelector={conversationSelector}
         accountEntropyPool={accountEntropyPool}
         addCustomColor={addCustomColor}
         autoDownloadAttachment={autoDownloadAttachment}
@@ -754,7 +773,6 @@ export function SmartPreferences(): JSX.Element | null {
         getMessageSampleForSchemaVersion={
           DataReader.getMessageSampleForSchemaVersion
         }
-        getPreferredBadge={getPreferredBadge}
         hasAudioNotifications={hasAudioNotifications}
         hasAutoConvertEmoji={hasAutoConvertEmoji}
         hasAutoDownloadUpdate={hasAutoDownloadUpdate}
@@ -856,6 +874,10 @@ export function SmartPreferences(): JSX.Element | null {
         renderProfileEditor={renderProfileEditor}
         renderToastManager={renderToastManager}
         renderUpdateDialog={renderUpdateDialog}
+        renderPreferencesChatFoldersPage={renderPreferencesChatFoldersPage}
+        renderPreferencesEditChatFolderPage={
+          renderPreferencesEditChatFolderPage
+        }
         promptOSAuth={promptOSAuth}
         resetAllChatColors={resetAllChatColors}
         resetDefaultChatColor={resetDefaultChatColor}
@@ -883,6 +905,9 @@ export function SmartPreferences(): JSX.Element | null {
         internalAddDonationReceipt={internalAddDonationReceipt}
         saveAttachmentToDisk={window.Signal.Migrations.saveAttachmentToDisk}
         generateDonationReceiptBlob={generateDonationReceiptBlob}
+        __dangerouslyRunAbitraryReadOnlySqlQuery={
+          __dangerouslyRunAbitraryReadOnlySqlQuery
+        }
       />
     </StrictMode>
   );

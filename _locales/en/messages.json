@@ -1384,7 +1384,7 @@
   },
   "icu:ConversationHeader__DeleteConversationConfirmation__description": {
     "messageformat": "All messages in this chat will be deleted from this device.",
-    "description": "Description for confirmation modal to delete a conversation"
+    "description": "(Deleted 2025/08/20) Description for confirmation modal to delete a conversation"
   },
   "icu:ConversationHeader__DeleteConversationConfirmation__description-with-sync": {
     "messageformat": "All messages in this chat will be deleted from all your devices.",
@@ -1825,6 +1825,14 @@
   "icu:Preferences__EditChatFolderPage__IncludedChatsSection__Help": {
     "messageformat": "Choose chats that you want to appear in this folder",
     "description": "Preferences > Edit Chat Folder Page > Included Chats Section > Help"
+  },
+  "icu:Preferences__EditChatFolderPage__IncludedChatsSection__DirectChats": {
+    "messageformat": "1:1 chats",
+    "description": "Preferences > Edit Chat Folder Page > Included Chats Section > Direct Chats"
+  },
+  "icu:Preferences__EditChatFolderPage__IncludedChatsSection__GroupChats": {
+    "messageformat": "Group chats",
+    "description": "Preferences > Edit Chat Folder Page > Included Chats Section > Group Chats"
   },
   "icu:Preferences__EditChatFolderPage__IncludedChatsSection__AddChatsButton": {
     "messageformat": "Add chats",
@@ -9183,6 +9191,6 @@
   },
   "icu:WhatsNew__v7.67--0": {
     "messageformat": "We fixed a bug that prevented donation badges from appearing correctly for some users. Signal is a 501c3 nonprofit, and we appreciate your support!",
-    "description": "Release notes for version 7.67"
+    "description": "(Deleted 2025/08/20) Release notes for version 7.67"
   }
 }

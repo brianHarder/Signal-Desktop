@@ -4,6 +4,7 @@
 /* eslint-disable camelcase */
 
 // TODO(indutny): format queries
+import type { RowType } from '@signalapp/sqlcipher';
 import SQL, { setLogger as setSqliteLogger } from '@signalapp/sqlcipher';
 import { randomBytes } from 'crypto';
 import { mkdirSync, rmSync } from 'node:fs';
@@ -238,6 +239,18 @@ import {
   getGroupSendMemberEndorsement,
   replaceAllEndorsementsForGroup,
 } from './server/groupSendEndorsements';
+import {
+  getAllChatFolders,
+  getCurrentChatFolders,
+  getChatFolder,
+  createChatFolder,
+  updateChatFolder,
+  markChatFolderDeleted,
+  getOldestDeletedChatFolder,
+  updateChatFolderPositions,
+  updateChatFolderDeletedAtTimestampMsFromSync,
+  deleteExpiredChatFolders,
+} from './server/chatFolders';
 import { INITIAL_EXPIRE_TIMER_VERSION } from '../util/expirationTimer';
 import type { GifType } from '../components/fun/panels/FunPanelGifs';
 import type { NotificationProfileType } from '../types/NotificationProfile';
@@ -421,6 +434,11 @@ export const DataReader: ServerReadableInterface = {
   getAllDonationReceipts,
   getDonationReceiptById,
 
+  getAllChatFolders,
+  getCurrentChatFolders,
+  getChatFolder,
+  getOldestDeletedChatFolder,
+
   callLinkExists,
   defunctCallLinkExists,
   getAllCallLinks,
@@ -477,6 +495,8 @@ export const DataReader: ServerReadableInterface = {
   finishPageMessages,
   getKnownDownloads,
   getKnownConversationAttachments,
+
+  __dangerouslyRunAbitraryReadOnlySqlQuery,
 };
 
 export const DataWriter: ServerWritableInterface = {
@@ -661,6 +681,13 @@ export const DataWriter: ServerWritableInterface = {
   deleteDonationReceiptById,
   createDonationReceipt,
 
+  createChatFolder,
+  updateChatFolder,
+  markChatFolderDeleted,
+  deleteExpiredChatFolders,
+  updateChatFolderPositions,
+  updateChatFolderDeletedAtTimestampMsFromSync,
+
   removeAll,
   removeAllConfiguration,
   eraseStorageServiceState,
@@ -677,6 +704,8 @@ export const DataWriter: ServerWritableInterface = {
 
   disableFSync,
   enableFSyncAndCheckpoint,
+
+  _testOnlyRemoveMessageAttachments,
 
   // Server-only
 
@@ -2693,6 +2722,17 @@ function saveMessageAttachment({
   ).run(values);
 }
 
+function _testOnlyRemoveMessageAttachments(
+  db: WritableDB,
+  timestamp: number
+): void {
+  const [query, params] = sql`
+    DELETE FROM message_attachments
+      WHERE sentAt = ${timestamp};`;
+
+  db.prepare(query).run(params);
+}
+
 function saveMessage(
   db: WritableDB,
   message: ReadonlyDeep<MessageType>,
@@ -2704,7 +2744,6 @@ function saveMessage(
     _testOnlyAvoidNormalizingAttachments?: boolean;
   }
 ): string {
-  // NB: `saveMessagesIndividually` relies on `saveMessage` being atomic
   const { alreadyInTransaction, forceSave, jobToInsert, ourAci } = options;
   if (!alreadyInTransaction) {
     return db.transaction(() => {
@@ -2874,6 +2913,10 @@ function saveMessage(
   } satisfies Omit<MessageTypeUnhydrated, 'json'>;
 
   if (id && !forceSave) {
+    if (normalizeAttachmentData) {
+      saveMessageAttachments(db, message);
+    }
+
     const result = db
       .prepare(
         // UPDATE queries that set the value of a primary key column can be very slow when
@@ -2892,15 +2935,11 @@ function saveMessage(
       return id;
     }
 
-    strictAssert(result.changes === 1, 'One row should have been changed');
-
-    if (normalizeAttachmentData) {
-      saveMessageAttachments(db, message);
-    }
-
     if (jobToInsert) {
       insertJob(db, jobToInsert);
     }
+
+    strictAssert(result.changes === 1, 'One row should have been changed');
 
     return id;
   }
@@ -2964,10 +3003,7 @@ function saveMessagesIndividually(
     const failedIndices: Array<number> = [];
     arrayOfMessages.forEach((message, index) => {
       try {
-        saveMessage(db, message, {
-          ...options,
-          alreadyInTransaction: true,
-        });
+        saveMessage(db, message, options);
       } catch (e) {
         logger.error(
           'saveMessagesIndividually: failed to save message',
@@ -7615,6 +7651,7 @@ function removeAll(db: WritableDB): void {
       DELETE FROM badges;
       DELETE FROM callLinks;
       DELETE FROM callsHistory;
+      DELETE FROM chatFolders;
       DELETE FROM conversations;
       DELETE FROM defunctCallLinks;
       DELETE FROM donationReceipts;
@@ -7764,6 +7801,14 @@ function eraseStorageServiceState(db: WritableDB): void {
 
     -- Call links
     UPDATE callLinks
+    SET
+      storageID = null,
+      storageVersion = null,
+      storageUnknownFields = null,
+      storageNeedsSync = 0;
+
+    -- Chat Folders
+    UPDATE chatFolders
     SET
       storageID = null,
       storageVersion = null,
@@ -8716,4 +8761,18 @@ function ensureMessageInsertTriggersAreEnabled(db: WritableDB): void {
       enableMessageInsertTriggersAndBackfill(db);
     }
   })();
+}
+
+function __dangerouslyRunAbitraryReadOnlySqlQuery(
+  db: ReadableDB,
+  readOnlySqlQuery: string
+): ReadonlyArray<RowType<object>> {
+  let results: ReadonlyArray<RowType<object>>;
+  try {
+    db.pragma('query_only = on');
+    results = db.prepare(readOnlySqlQuery).all();
+  } finally {
+    db.pragma('query_only = off');
+  }
+  return results;
 }

@@ -1,7 +1,7 @@
 // Copyright 2020 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { Database } from '@signalapp/sqlcipher';
+import type { Database, RowType } from '@signalapp/sqlcipher';
 import type { ReadonlyDeep } from 'type-fest';
 
 import { strictAssert } from '../util/assert';
@@ -54,6 +54,7 @@ import type { GifType } from '../components/fun/panels/FunPanelGifs';
 import type { NotificationProfileType } from '../types/NotificationProfile';
 import type { DonationReceipt } from '../types/Donations';
 import type { InsertOrUpdateCallLinkFromSyncResult } from './server/callLinks';
+import type { ChatFolderId, ChatFolder } from '../types/ChatFolder';
 
 export type ReadableDB = Database & { __readable_db: never };
 export type WritableDB = ReadableDB & { __writable_db: never };
@@ -346,8 +347,8 @@ export const StickerPackStatuses = [
 export type StickerPackStatusType = (typeof StickerPackStatuses)[number];
 
 export type StorageServiceFieldsType = Readonly<{
-  storageID?: string;
-  storageVersion?: number;
+  storageID?: string | null;
+  storageVersion?: number | null;
   storageUnknownFields?: Uint8Array | null;
   storageNeedsSync: boolean;
 }>;
@@ -872,6 +873,11 @@ type ReadableInterface = {
   getAllDonationReceipts(): Array<DonationReceipt>;
   getDonationReceiptById(id: string): DonationReceipt | undefined;
 
+  getAllChatFolders: () => ReadonlyArray<ChatFolder>;
+  getCurrentChatFolders: () => ReadonlyArray<ChatFolder>;
+  getChatFolder: (id: ChatFolderId) => ChatFolder | null;
+  getOldestDeletedChatFolder: () => ChatFolder | null;
+
   getMessagesNeedingUpgrade: (
     limit: number,
     options: { maxVersion: number }
@@ -894,6 +900,10 @@ type ReadableInterface = {
   getMessageSampleForSchemaVersion: (
     version: number
   ) => Array<MessageAttributesType>;
+
+  __dangerouslyRunAbitraryReadOnlySqlQuery: (
+    readOnlySqlQuery: string
+  ) => ReadonlyArray<RowType<object>>;
 };
 
 type WritableInterface = {
@@ -1196,6 +1206,22 @@ type WritableInterface = {
   deleteDonationReceiptById(id: string): void;
   createDonationReceipt(profile: DonationReceipt): void;
 
+  createChatFolder: (chatFolder: ChatFolder) => void;
+  updateChatFolder: (chatFolder: ChatFolder) => void;
+  updateChatFolderPositions: (chatFolders: ReadonlyArray<ChatFolder>) => void;
+  updateChatFolderDeletedAtTimestampMsFromSync: (
+    chatFolderId: ChatFolderId,
+    deletedAtTimestampMs: number
+  ) => void;
+  markChatFolderDeleted: (
+    chatFolderId: ChatFolderId,
+    deletedAtTimestampMs: number,
+    storageNeedsSync: boolean
+  ) => void;
+  deleteExpiredChatFolders: (
+    messageQueueTime: number
+  ) => ReadonlyArray<ChatFolderId>;
+
   removeAll: () => void;
   removeAllConfiguration: () => void;
   eraseStorageServiceState: () => void;
@@ -1212,6 +1238,8 @@ type WritableInterface = {
 
   processGroupCallRingCancellation(ringId: bigint): void;
   cleanExpiredGroupCallRingCancellations(): void;
+
+  _testOnlyRemoveMessageAttachments(timestamp: number): void;
 };
 
 // Adds a database argument
