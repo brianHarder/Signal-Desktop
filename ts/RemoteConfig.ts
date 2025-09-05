@@ -23,6 +23,7 @@ const KnownConfigKeys = [
   'desktop.clientExpiration',
   'desktop.backup.credentialFetch',
   'desktop.donations',
+  'desktop.donations.prod',
   'desktop.internalUser',
   'desktop.mediaQuality.levels',
   'desktop.messageCleanup',
@@ -131,7 +132,7 @@ export const _refreshRemoteConfig = async (
   const oldConfig = config;
   config = Array.from(newConfigValues.entries()).reduce(
     (acc, [name, value]) => {
-      const enabled = value !== undefined;
+      const enabled = value !== undefined && value.toLowerCase() !== 'false';
       const previouslyEnabled: boolean = get(
         oldConfig,
         [name, 'enabled'],
