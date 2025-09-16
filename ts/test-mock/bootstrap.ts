@@ -175,7 +175,6 @@ function sanitizePathComponent(component: string): string {
 }
 
 const DEFAULT_REMOTE_CONFIG = [
-  ['desktop.backup.credentialFetch', { enabled: true }],
   ['desktop.internalUser', { enabled: true }],
   ['desktop.senderKey.retry', { enabled: true }],
   ['global.backups.mediaTierFallbackCdnNumber', { enabled: true, value: '3' }],
@@ -674,7 +673,7 @@ export class Bootstrap {
     return join(this.#storagePath, 'attachments.noindex', relativePath);
   }
 
-  public async storeAttachmentOnCDN(
+  public async encryptAndStoreAttachmentOnCDN(
     data: Buffer,
     contentType: MIMEType
   ): Promise<Proto.IAttachmentPointer> {
@@ -684,13 +683,13 @@ export class Bootstrap {
 
     const passthrough = new PassThrough();
 
-    const [{ digest }] = await Promise.all([
+    const [{ digest, chunkSize, incrementalMac }] = await Promise.all([
       encryptAttachmentV2({
         keys,
         plaintext: {
           data,
         },
-        needIncrementalMac: false,
+        needIncrementalMac: true,
         sink: passthrough,
       }),
       this.server.storeAttachmentOnCdn(cdnNumber, cdnKey, passthrough),
@@ -703,6 +702,8 @@ export class Bootstrap {
       cdnNumber,
       key: keys,
       digest,
+      chunkSize,
+      incrementalMac,
     };
   }
 

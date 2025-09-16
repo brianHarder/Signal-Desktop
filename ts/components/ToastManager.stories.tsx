@@ -206,6 +206,8 @@ function getToast(toastType: ToastType): AnyToast {
       return { toastType: ToastType.TooManyMessagesToForward };
     case ToastType.UnableToLoadAttachment:
       return { toastType: ToastType.UnableToLoadAttachment };
+    case ToastType.UnableToDownloadFromBackupTier:
+      return { toastType: ToastType.UnableToDownloadFromBackupTier };
     case ToastType.UnsupportedMultiAttachment:
       return { toastType: ToastType.UnsupportedMultiAttachment };
     case ToastType.UnsupportedOS:
@@ -269,12 +271,10 @@ export default {
   },
   args: {
     changeLocation: action('changeLocation'),
-    clearDonation: action('clearDonation'),
     hideToast: action('hideToast'),
     openFileInFolder: action('openFileInFolder'),
     onShowDebugLog: action('onShowDebugLog'),
     onUndoArchive: action('onUndoArchive'),
-    showAttachmentNotAvailableModal: action('showAttachmentNotAvailableModal'),
     i18n,
     toastType: ToastType.AddingUserToGroup,
     megaphoneType: MegaphoneType.UsernameOnboarding,
