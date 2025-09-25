@@ -3,7 +3,7 @@
 
 # Pull Requests
 
-Chat Search Filter Removal: https://github.com/signalapp/Signal-Desktop/pull/7493<br>
+Copy-Paste Formatting Inheritance: https://github.com/brianHarder/Signal-Desktop/tree/formatting-inheritance<br>
 Conversation List Highlighting: https://github.com/signalapp/Signal-Desktop/pull/7453<br>
 Drag-and-Drop from Web Browsers: https://github.com/signalapp/Signal-Desktop/pull/7425<br>
 Reaction Overlay: https://github.com/signalapp/Signal-Desktop/pull/7348<br>
