@@ -8,32 +8,18 @@
   position: relative;
 
   &__input {
-    &__input {
+    &.module-composition-input__input {
       background: inherit;
       border: none;
       border-radius: 0;
       height: 100%;
 
-      &:focus-within {
-        border: none;
-      }
-
-      @include mixins.dark-theme() {
-        border: none;
-
-        &:focus-within {
-          border: none;
-        }
-      }
-
-      @include mixins.keyboard-mode {
-        &:focus-within {
-          border: solid 1px variables.$color-ultramarine;
-        }
+      &[data-focus-visible='true'] {
+        border: solid 1px variables.$color-ultramarine;
       }
     }
 
-    &__input__scroller {
+    .module-composition-input__input__scroller {
       max-height: 300px;
       min-height: 100px;
       padding: 16px;

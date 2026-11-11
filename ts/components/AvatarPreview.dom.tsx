@@ -1,0 +1,267 @@
+// Copyright 2021 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
+
+import type { CSSProperties, JSX, KeyboardEvent } from 'react';
+import { useEffect, useState } from 'react';
+import lodash from 'lodash';
+import classNames from 'classnames';
+
+import { createLogger } from '../logging/log.std.ts';
+import type { LocalizerType } from '../types/Util.std.ts';
+import { Spinner } from './Spinner.dom.tsx';
+import type { AvatarColorType } from '../types/Avatar.std.ts';
+import { AvatarColors } from '../types/Avatar.std.ts';
+import { getInitials } from '../util/getInitials.std.ts';
+import { imagePathToBytes } from '../util/imagePathToBytes.dom.ts';
+import { type ConversationType } from '../state/ducks/conversations.preload.ts';
+import { AxoTokens } from '../axo/AxoTokens.std.ts';
+
+const { noop } = lodash;
+
+const log = createLogger('AvatarPreview');
+
+export type PropsType = {
+  avatarColor?: AvatarColorType;
+  avatarUrl?: string;
+  avatarValue?: Uint8Array<ArrayBuffer>;
+  conversationTitle?: string;
+  i18n: LocalizerType;
+  isEditable?: boolean;
+  isGroup?: boolean;
+  noteToSelf?: boolean;
+  onAvatarLoaded?: (avatarBuffer: Uint8Array<ArrayBuffer>) => unknown;
+  onClear?: () => unknown;
+  onClick?: () => unknown;
+  showUploadButton?: boolean;
+  style?: CSSProperties;
+} & Pick<ConversationType, 'avatarPlaceholderGradient' | 'hasAvatar'>;
+
+enum ImageStatus {
+  Nothing = 'nothing',
+  Loading = 'loading',
+  HasImage = 'has-image',
+  HasPlaceholder = 'has-placeholder',
+}
+
+const ImageStatusClassNames: Record<ImageStatus, string | null> = {
+  [ImageStatus.Nothing]: 'AvatarPreview__avatar--nothing',
+  [ImageStatus.Loading]: 'AvatarPreview__avatar--loading',
+  [ImageStatus.HasImage]: 'AvatarPreview__avatar--has-image',
+  [ImageStatus.HasPlaceholder]: null,
+};
+
+export function AvatarPreview({
+  avatarPlaceholderGradient,
+  avatarColor = AvatarColors[0],
+  avatarUrl,
+  avatarValue,
+  conversationTitle,
+  hasAvatar,
+  i18n,
+  isEditable,
+  isGroup,
+  noteToSelf,
+  onAvatarLoaded,
+  onClear,
+  onClick,
+  showUploadButton,
+  style = {},
+}: PropsType): JSX.Element {
+  const [avatarPreview, setAvatarPreview] = useState<
+    Uint8Array<ArrayBuffer> | undefined
+  >();
+
+  // Loads the initial avatarUrl if one is provided, but only if we're in editable mode.
+  //   If we're not editable, we assume that we either have an avatarUrl or we show a
+  //   default avatar.
+  useEffect(() => {
+    if (!isEditable) {
+      return;
+    }
+
+    if (!avatarUrl) {
+      return noop;
+    }
+
+    let shouldCancel = false;
+
+    void (async () => {
+      try {
+        const buffer = await imagePathToBytes(avatarUrl);
+        if (shouldCancel) {
+          return;
+        }
+        setAvatarPreview(buffer);
+        onAvatarLoaded?.(buffer);
+      } catch (err) {
+        if (shouldCancel) {
+          return;
+        }
+        log.warn(
+          `Failed to convert image URL to array buffer. Error message: ${
+            err && err.message
+          }`
+        );
+      }
+    })();
+
+    return () => {
+      shouldCancel = true;
+    };
+  }, [avatarUrl, onAvatarLoaded, isEditable]);
+
+  // Ensures that when avatarValue changes we generate new URLs
+  useEffect(() => {
+    if (avatarValue) {
+      // oxlint-disable-next-line react/set-state-in-effect
+      setAvatarPreview(avatarValue);
+    } else {
+      setAvatarPreview(undefined);
+    }
+  }, [avatarValue]);
+
+  // Creates the object URL to render the Uint8Array image
+  const [objectUrl, setObjectUrl] = useState<undefined | string>();
+
+  useEffect(() => {
+    if (!avatarPreview) {
+      // oxlint-disable-next-line react/set-state-in-effect
+      setObjectUrl(undefined);
+      return noop;
+    }
+
+    const url = URL.createObjectURL(new Blob([avatarPreview]));
+    setObjectUrl(url);
+
+    return () => {
+      URL.revokeObjectURL(url);
+    };
+  }, [avatarPreview]);
+
+  let imageStatus: ImageStatus;
+  let encodedPath: string | undefined;
+  if (avatarValue && !objectUrl) {
+    imageStatus = ImageStatus.Loading;
+  } else if (noteToSelf) {
+    imageStatus = ImageStatus.Nothing;
+  } else if (objectUrl) {
+    encodedPath = objectUrl;
+    imageStatus = ImageStatus.HasImage;
+  } else if (avatarUrl) {
+    encodedPath = avatarUrl;
+    imageStatus = ImageStatus.HasImage;
+  } else if (hasAvatar && avatarPlaceholderGradient) {
+    imageStatus = ImageStatus.HasPlaceholder;
+  } else {
+    imageStatus = ImageStatus.Nothing;
+  }
+
+  const isLoading = imageStatus === ImageStatus.Loading;
+
+  const clickProps = onClick
+    ? {
+        role: 'button',
+        onClick,
+        tabIndex: 0,
+        onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            onClick();
+          }
+        },
+      }
+    : {};
+
+  const colorValues =
+    avatarColor != null ? AxoTokens.Avatar.getColorValues(avatarColor) : null;
+
+  const colorStyle =
+    colorValues != null
+      ? ({
+          '--AvatarPreview__avatar-bg': colorValues.bg,
+          '--AvatarPreview__avatar-fg': colorValues.fg,
+        } as CSSProperties)
+      : null;
+
+  const componentStyle: CSSProperties = {
+    ...style,
+  };
+  if (onClick) {
+    componentStyle.cursor = 'pointer';
+  }
+
+  if (imageStatus === ImageStatus.Nothing) {
+    let content: JSX.Element | string | undefined;
+    const initials = getInitials(conversationTitle);
+    if (isGroup) {
+      content = <div className="AvatarPreview__group" />;
+    } else if (noteToSelf) {
+      content = <div className="AvatarPreview__note_to_self" />;
+    } else if (initials) {
+      content = initials;
+    } else {
+      content = <div className="AvatarPreview__contact" />;
+    }
+
+    return (
+      <div className="AvatarPreview">
+        <div
+          className="AvatarPreview__avatar AvatarPreview__avatar--nothing"
+          {...clickProps}
+          style={{ ...componentStyle, ...colorStyle }}
+        >
+          {content}
+          {showUploadButton && <div className="AvatarPreview__upload" />}
+        </div>
+      </div>
+    );
+  }
+
+  if (imageStatus === ImageStatus.HasPlaceholder) {
+    return (
+      <div className="AvatarPreview">
+        <div
+          className="AvatarPreview__avatar"
+          style={{
+            ...componentStyle,
+            backgroundImage: avatarPlaceholderGradient
+              ? `linear-gradient(to bottom, ${avatarPlaceholderGradient[0]}, ${avatarPlaceholderGradient[1]})`
+              : undefined,
+          }}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="AvatarPreview">
+      <div
+        className={classNames(
+          'AvatarPreview__avatar',
+          ImageStatusClassNames[imageStatus]
+        )}
+        {...clickProps}
+        style={
+          imageStatus === ImageStatus.HasImage && encodedPath
+            ? {
+                ...componentStyle,
+                backgroundImage: `url('${encodedPath}')`,
+              }
+            : componentStyle
+        }
+      >
+        {isLoading && (
+          <Spinner size="70px" svgSize="normal" direction="on-avatar" />
+        )}
+        {imageStatus === ImageStatus.HasImage && onClear && (
+          <button
+            aria-label={i18n('icu:delete')}
+            className="AvatarPreview__clear"
+            onClick={onClear}
+            type="button"
+          />
+        )}
+        {showUploadButton && <div className="AvatarPreview__upload" />}
+      </div>
+    </div>
+  );
+}

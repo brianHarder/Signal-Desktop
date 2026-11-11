@@ -6,14 +6,14 @@
 
 .CallingAdhocCallInfo {
   flex-shrink: 0;
-  width: 360px;
+  width: 320px;
   height: auto;
   margin-block-end: auto;
   padding-block-end: 16px;
   pointer-events: auto;
 }
 
-.CallingAdhocCallInfo__width-container {
+.CallingAdhocCallInfo__modal .module-modal-host__width-container {
   display: flex;
   flex-direction: row;
   width: 100%;
@@ -26,18 +26,18 @@
   pointer-events: none;
 }
 
-.CallingAdhocCallInfo__width-container::after {
+.CallingAdhocCallInfo__modal .module-modal-host__width-container::after {
   content: '';
   display: flex;
   flex-shrink: 1;
   flex-basis: 480px;
 }
 
-.CallingAdhocCallInfo__overlay {
+.CallingAdhocCallInfo__modal .module-modal-host__overlay {
   background: transparent;
 }
 
-.CallingAdhocCallInfo__overlay-container {
+.CallingAdhocCallInfo__modal .module-modal-host__overlay-container {
   flex-direction: column;
   padding: 0;
   justify-content: flex-end;
@@ -69,6 +69,12 @@
   border-radius: 36px;
   align-items: center;
   justify-content: center;
+}
+
+.CallingAdhocCallInfo__MenuItem {
+  &:focus-visible {
+    @include mixins.axo-focus-ring;
+  }
 }
 
 .CallingAdhocCallInfo__MenuItemIcon:before {
@@ -103,40 +109,32 @@
   border: 1px solid variables.$color-gray-65;
 }
 
-.CallingAdhocCallInfo__RemoveClient {
+.CallingAdhocCallInfo__UnknownContactInfoButton {
   @include mixins.button-reset;
+
   & {
+    display: flex;
+    flex: none;
+    margin-inline: 8px;
+    border-radius: 9999px;
+  }
+
+  &::before {
+    content: '';
+    display: block;
     width: 16px;
     height: 16px;
-    margin-inline: 8px;
-    background: variables.$color-white;
+    @include mixins.color-svg(
+      '../images/icons/v3/info/info.svg',
+      variables.$color-white
+    );
   }
 }
 
 .CallingAdhocCallInfo__UnknownContactInfoButton {
-  @include mixins.button-reset;
-  @include mixins.color-svg(
-    '../images/icons/v3/info/info.svg',
-    variables.$color-white
-  );
-  & {
-    display: flex;
-    flex: none;
-    width: 16px;
-    height: 16px;
-    margin-inline: 8px;
+  &:focus-visible {
+    @include mixins.axo-focus-ring;
   }
-}
-
-.CallingAdhocCallInfo__UnknownContactInfoButton:focus {
-  @include mixins.keyboard-mode {
-    background: variables.$color-ultramarine;
-  }
-}
-
-.CallingAdhocCallInfo__UnknownContactInfoDialog__body {
-  padding-block-start: 22px;
-  padding-block-end: 8px;
 }
 
 .CallingAdhocCallInfo__UnknownContactAvatarSet {
@@ -160,8 +158,4 @@
   .module-Avatar__contents {
   // Should match background of .module-calling-participants-list__contact:hover
   outline-color: variables.$color-gray-62;
-}
-
-.CallingAdhocCallInfo__RemoveClientDialog {
-  width: 440px;
 }

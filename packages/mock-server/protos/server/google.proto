@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package google.protobuf;
+
+option go_package = "google.golang.org/protobuf/types/known/emptypb";
+option java_package = "com.google.protobuf";
+option java_outer_classname = "EmptyProto";
+option java_multiple_files = true;
+option objc_class_prefix = "GPB";
+option csharp_namespace = "Google.Protobuf.WellKnownTypes";
+option cc_enable_arenas = true;
+
+// A generic empty message that you can re-use to avoid defining duplicated
+// empty messages in your APIs. A typical example is to use it as the request
+// or the response type of an API method. For instance:
+//
+//     service Foo {
+//       rpc Bar(google.protobuf.Empty) returns (google.protobuf.Empty);
+//     }
+//
+message Empty {}
+
+// `Any` contains an arbitrary serialized protocol buffer message along with a
+// URL that describes the type of the serialized message.
+message Any {
+  string type_url = 1;
+  bytes value = 2;
+}
+
+// A Duration represents a signed, fixed-length span of time represented
+// as a count of seconds and fractions of seconds at nanosecond
+// resolution.
+message Duration {
+  int64 seconds = 1;
+  int32 nanos = 2;
+}

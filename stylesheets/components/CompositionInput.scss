@@ -24,14 +24,6 @@
         inset-inline: 0;
         font-style: normal;
       }
-      &::-webkit-scrollbar-thumb {
-        @include mixins.light-theme {
-          border-color: variables.$color-gray-05;
-        }
-        @include mixins.dark-theme {
-          border-color: variables.$color-gray-75;
-        }
-      }
     }
   }
 
@@ -53,7 +45,28 @@
 
     border-radius: 18px;
     overflow: hidden;
-    word-break: break-word;
+    overflow-wrap: break-word;
+    word-break: auto-phrase;
+
+    background: var(--axo-color-surface-message-incoming);
+    color: var(--axo-color-label-primary);
+
+    &--with-view-once {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    &--view-once-active {
+      .ql-editor {
+        visibility: hidden;
+      }
+
+      .module-composition-input__input__scroller {
+        height: 32px;
+        overflow: hidden;
+      }
+    }
 
     // Override Quill styles
     .ql-container {
@@ -72,35 +85,17 @@
       }
     }
 
-    @include mixins.light-theme() {
-      // Same as background color
-      background-color: variables.$color-gray-05;
-      color: variables.$color-gray-90;
-    }
-
-    @include mixins.dark-theme() {
-      // Same as background color
-      background-color: variables.$color-gray-75;
-      color: variables.$color-gray-05;
-    }
-
     &__scroller {
       $padding-top: 6px;
+      position: relative;
       padding-block: $padding-top;
       padding-inline: 0;
+      flex: 1;
+      min-width: 0;
 
       min-height: calc(32px - 2 * $border-size);
       max-height: calc(72px - 2 * $border-size);
       overflow: auto;
-
-      &::-webkit-scrollbar-thumb {
-        @include mixins.light-theme {
-          border-color: variables.$color-gray-05;
-        }
-        @include mixins.dark-theme {
-          border-color: variables.$color-gray-75;
-        }
-      }
 
       &--large {
         $largeHeight: calc(212px - 2 * $border-size);
@@ -110,10 +105,6 @@
         height: $largeHeight;
         max-height: $largeHeight;
         min-height: $largeHeight;
-
-        .DraftEditor-root {
-          height: $largeHeightContentBox;
-        }
 
         .ql-editor {
           margin-inline-end: calc(-1 * variables.$scrollbar_width);
@@ -130,11 +121,12 @@
       border: $border-size solid transparent;
     }
 
-    &:focus-within {
-      outline: 0;
-      @include mixins.keyboard-mode {
-        border: $border-size solid variables.$color-ultramarine;
-      }
+    &:focus-visible {
+      outline: none;
+    }
+
+    &[data-focus-visible='true'] {
+      border: $border-size solid variables.$color-ultramarine;
     }
   }
 
@@ -177,12 +169,12 @@
         margin-inline-end: 0;
       }
 
-      @include mixins.mouse-mode {
+      @include mixins.light-theme {
         &:hover {
           background-color: variables.$color-gray-05;
         }
       }
-      @include mixins.dark-mouse-mode {
+      @include mixins.dark-theme {
         &:hover {
           background-color: variables.$color-gray-60;
         }
@@ -196,12 +188,12 @@
           background-color: rgba(variables.$color-gray-45, 30%);
         }
 
-        @include mixins.mouse-mode {
+        @include mixins.light-theme {
           &:hover {
             background-color: variables.$color-gray-15;
           }
         }
-        @include mixins.dark-mouse-mode {
+        @include mixins.dark-theme {
           &:hover {
             background-color: rgba(variables.$color-gray-45, 50%);
           }
@@ -322,13 +314,13 @@
           }
         }
 
-        // Here we look at hover for the parent so the 2px border is a hover target
-        // Note: We can't use the mixins because .mouse-mode would end up after the >
-        .mouse-mode #{$parent}:hover & {
-          background-color: variables.$color-gray-90;
-        }
-        .dark-theme.mouse-mode #{$parent}:hover & {
-          background-color: variables.$color-gray-15;
+        #{$parent}:hover & {
+          @include mixins.light-theme {
+            background-color: variables.$color-gray-90;
+          }
+          @include mixins.dark-theme {
+            background-color: variables.$color-gray-15;
+          }
         }
 
         &--active {
@@ -340,11 +332,13 @@
           }
 
           // Override above hover behaviors
-          .mouse-mode #{$parent}:hover & {
-            background-color: variables.$color-ultramarine;
-          }
-          .dark-theme.mouse-mode #{$parent}:hover & {
-            background-color: variables.$color-ultramarine-light;
+          #{$parent}:hover & {
+            @include mixins.light-theme {
+              background-color: variables.$color-ultramarine;
+            }
+            @include mixins.dark-theme {
+              background-color: variables.$color-ultramarine-light;
+            }
           }
         }
       }
@@ -390,8 +384,8 @@
         height: 40px;
       }
 
-      &:focus {
-        outline: 0;
+      &:focus-visible {
+        outline: none;
       }
 
       & {
@@ -436,7 +430,6 @@
   &__editing-message {
     @include mixins.font-body-2-bold;
     margin-top: 10px;
-    user-select: none;
 
     &::before {
       content: '';
@@ -469,6 +462,24 @@
       width: 18px;
     }
   }
+
+  &__view-once-button {
+    flex-shrink: 0;
+    align-self: center;
+    margin-inline-end: 8px;
+    margin-inline-start: 4px;
+  }
+
+  &__view-once-placeholder {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+
+    color: light-dark(variables.$color-gray-45, variables.$color-gray-25);
+  }
 }
 
 div.CompositionInput__link-preview {
@@ -484,26 +495,27 @@ div.CompositionInput__link-preview {
     background: variables.$color-gray-80;
   }
 
-  &__icon-container {
+  .module-staged-link-preview__icon-container {
     align-items: center;
     display: flex;
     margin-inline: 8px 0;
   }
 
-  &__content {
+  .module-staged-link-preview__content {
     margin-inline-end: 0;
     padding-bottom: 8px;
     padding-inline-start: 12px;
     padding-top: 8px;
   }
 
-  &__no-image {
+  .module-staged-link-preview__no-image {
     margin-inline-end: 0;
     min-width: 74px;
   }
 }
 
-button.CompositionInput__link-preview__close-button {
+.CompositionInput__link-preview
+  button.module-staged-link-preview__close-button {
   -webkit-mask: none;
   @include mixins.rounded-corners;
   align-items: center;

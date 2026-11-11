@@ -1,0 +1,337 @@
+// Copyright 2019 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
+
+import lodash from 'lodash';
+import type { ReadonlyDeep } from 'type-fest';
+
+import { SignalService as Proto } from '../protobuf/index.std.ts';
+import type { ReadonlyMessageAttributesType } from '../model-types.std.ts';
+
+import { combineNames } from '../util/combineNames.std.ts';
+import { getInitials } from '../util/getInitials.std.ts';
+import { isNotNil } from '../util/isNotNil.std.ts';
+import { normalize as normalizePhoneNumber } from './PhoneNumber.std.ts';
+import type {
+  AttachmentType,
+  AttachmentForUIType,
+  UploadedAttachmentType,
+} from './Attachment.std.ts';
+import { toLogFormat } from './errors.std.ts';
+import type { AciString } from './ServiceId.std.ts';
+import type { ContextType } from './Message2.preload.ts';
+import type { SharedContactResolutionType } from '../util/sharedContact.std.ts';
+
+const { omit } = lodash;
+
+type GenericEmbeddedContactType<AvatarType> = {
+  name?: EmbeddedContactName;
+  number?: ReadonlyArray<Phone>;
+  email?: ReadonlyArray<Email>;
+  address?: ReadonlyArray<PostalAddress>;
+  avatar?: AvatarType;
+  organization?: string;
+  aci: AciString | undefined;
+  nickname: EmbeddedContactNickname | undefined;
+  note: string | undefined;
+};
+
+export type EmbeddedContactType = GenericEmbeddedContactType<Avatar>;
+export type EmbeddedContactWithAvatarForUIType =
+  GenericEmbeddedContactType<AvatarForUI>;
+export type EmbeddedContactForUIType = EmbeddedContactWithAvatarForUIType & {
+  resolution: SharedContactResolutionType;
+};
+
+export type EmbeddedContactWithUploadedAvatar =
+  GenericEmbeddedContactType<UploadedAvatar>;
+
+export type EmbeddedContactName = {
+  givenName?: string;
+  familyName?: string;
+  prefix?: string;
+  suffix?: string;
+  middleName?: string;
+  nickname?: string;
+};
+
+export type EmbeddedContactNickname = {
+  givenName: string | undefined;
+  familyName: string | undefined;
+};
+
+export enum ContactFormType {
+  HOME = 1,
+  MOBILE = 2,
+  WORK = 3,
+  CUSTOM = 4,
+}
+
+export enum AddressType {
+  HOME = 1,
+  WORK = 2,
+  CUSTOM = 3,
+}
+
+export type Phone = {
+  value: string;
+  type: ContactFormType;
+  label?: string;
+};
+
+export type Email = {
+  value: string;
+  type: ContactFormType;
+  label?: string;
+};
+
+export type PostalAddress = {
+  type: AddressType;
+  label?: string;
+  street?: string;
+  pobox?: string;
+  neighborhood?: string;
+  city?: string;
+  region?: string;
+  postcode?: string;
+  country?: string;
+};
+
+type GenericAvatar<Attachment> = {
+  avatar?: Attachment;
+  isProfile: boolean;
+};
+
+export type Avatar = GenericAvatar<AttachmentType>;
+export type AvatarForUI = GenericAvatar<AttachmentForUIType>;
+export type UploadedAvatar = GenericAvatar<UploadedAttachmentType>;
+
+const DEFAULT_PHONE_TYPE = Proto.DataMessage.Contact.Phone.Type.HOME;
+const DEFAULT_EMAIL_TYPE = Proto.DataMessage.Contact.Email.Type.HOME;
+const DEFAULT_ADDRESS_TYPE = Proto.DataMessage.Contact.PostalAddress.Type.HOME;
+
+export function numberToPhoneType(
+  type: number
+): Proto.DataMessage.Contact.Phone.Type {
+  if (type === Proto.DataMessage.Contact.Phone.Type.MOBILE) {
+    return type;
+  }
+  if (type === Proto.DataMessage.Contact.Phone.Type.WORK) {
+    return type;
+  }
+  if (type === Proto.DataMessage.Contact.Phone.Type.CUSTOM) {
+    return type;
+  }
+
+  return DEFAULT_PHONE_TYPE;
+}
+
+export function numberToEmailType(
+  type: number
+): Proto.DataMessage.Contact.Email.Type {
+  if (type === Proto.DataMessage.Contact.Email.Type.MOBILE) {
+    return type;
+  }
+  if (type === Proto.DataMessage.Contact.Email.Type.WORK) {
+    return type;
+  }
+  if (type === Proto.DataMessage.Contact.Email.Type.CUSTOM) {
+    return type;
+  }
+
+  return DEFAULT_EMAIL_TYPE;
+}
+
+export function numberToAddressType(
+  type: number
+): Proto.DataMessage.Contact.PostalAddress.Type {
+  if (type === Proto.DataMessage.Contact.PostalAddress.Type.WORK) {
+    return type;
+  }
+  if (type === Proto.DataMessage.Contact.PostalAddress.Type.CUSTOM) {
+    return type;
+  }
+
+  return DEFAULT_ADDRESS_TYPE;
+}
+
+type ContactNameFieldsType = Readonly<{
+  name?: Readonly<EmbeddedContactName> | null;
+  organization?: string | null;
+}>;
+
+export function getFullName(
+  contact: ContactNameFieldsType
+): string | undefined {
+  const { name } = contact;
+  if (!name?.prefix && !name?.middleName && !name?.suffix) {
+    return combineNames(name?.givenName, name?.familyName);
+  }
+
+  return [
+    name.prefix,
+    name.givenName,
+    name.middleName,
+    name.familyName,
+    name.suffix,
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
+
+export function getDisplayName(
+  contact: ContactNameFieldsType
+): string | undefined {
+  return getFullName(contact) || contact.organization || undefined;
+}
+
+export function getContactInitials(
+  contact: ContactNameFieldsType
+): string | undefined {
+  const { name } = contact;
+  return getInitials(
+    combineNames(name?.givenName, name?.familyName) || getDisplayName(contact)
+  );
+}
+
+export function getDisplayNickname(
+  contact: ReadonlyDeep<EmbeddedContactType>
+): string | undefined {
+  const { nickname } = contact;
+  return combineNames(nickname?.givenName, nickname?.familyName);
+}
+
+export async function parseAndValidate(
+  contact: EmbeddedContactType,
+  context: Pick<ContextType, 'getRegionCode' | 'logger'>,
+  message: ReadonlyMessageAttributesType
+): Promise<EmbeddedContactType> {
+  const { getRegionCode, logger } = context;
+
+  // eliminates empty numbers, emails, and addresses; adds type if not provided
+  const parsedContact = parseContact(contact, {
+    regionCode: getRegionCode(),
+  });
+
+  const error = _validate(parsedContact, {
+    messageId: idForLogging(message),
+  });
+  if (error) {
+    logger.error(
+      'parseAndWriteAvatar: contact was malformed.',
+      toLogFormat(error)
+    );
+  }
+
+  return parsedContact;
+}
+
+function parseContact(
+  contact: EmbeddedContactType,
+  { regionCode }: { regionCode: string | undefined }
+): EmbeddedContactType {
+  const boundParsePhone = (phoneNumber: Phone): Phone | undefined =>
+    parsePhoneItem(phoneNumber, { regionCode });
+
+  const skipEmpty = <T>(arr: Array<T | undefined>): Array<T> | undefined => {
+    const filtered: Array<T> = arr.filter(isNotNil);
+    return filtered.length ? filtered : undefined;
+  };
+
+  const number = skipEmpty((contact.number || []).map(boundParsePhone));
+  const email = skipEmpty((contact.email || []).map(parseEmailItem));
+  const address = skipEmpty((contact.address || []).map(parseAddress));
+
+  let result = {
+    ...omit(contact, ['avatar', 'number', 'email', 'address']),
+    ...parseAvatar(contact.avatar),
+  };
+
+  if (number) {
+    result = { ...result, number };
+  }
+  if (email) {
+    result = { ...result, email };
+  }
+  if (address) {
+    result = { ...result, address };
+  }
+  return result;
+}
+
+function idForLogging(message: ReadonlyMessageAttributesType): string {
+  return `${message.source}.${message.sourceDevice} ${message.sent_at}`;
+}
+
+// Exported for testing
+export function _validate(
+  contact: EmbeddedContactType,
+  { messageId }: { messageId: string }
+): Error | undefined {
+  if (!getDisplayName(contact)) {
+    return new Error(
+      `Message ${messageId}: Contact had neither 'name' nor 'organization'`
+    );
+  }
+
+  return undefined;
+}
+
+export function parsePhoneItem(
+  item: Phone,
+  { regionCode }: { regionCode: string | undefined }
+): Phone | undefined {
+  if (!item.value) {
+    return undefined;
+  }
+
+  const value = regionCode
+    ? normalizePhoneNumber(item.value, { regionCode })
+    : item.value;
+
+  return {
+    ...item,
+    type: item.type || DEFAULT_PHONE_TYPE,
+    value: value ?? item.value,
+  };
+}
+
+function parseEmailItem(item: Email): Email | undefined {
+  if (!item.value) {
+    return undefined;
+  }
+
+  return { ...item, type: item.type || DEFAULT_EMAIL_TYPE };
+}
+
+function parseAddress(address: PostalAddress): PostalAddress | undefined {
+  if (!address) {
+    return undefined;
+  }
+
+  if (
+    !address.street &&
+    !address.pobox &&
+    !address.neighborhood &&
+    !address.city &&
+    !address.region &&
+    !address.postcode &&
+    !address.country
+  ) {
+    return undefined;
+  }
+
+  return { ...address, type: address.type || DEFAULT_ADDRESS_TYPE };
+}
+
+function parseAvatar(avatar?: Avatar): { avatar: Avatar } | undefined {
+  if (!avatar?.avatar) {
+    return undefined;
+  }
+
+  return {
+    avatar: {
+      ...avatar,
+      isProfile: avatar.isProfile || false,
+    },
+  };
+}

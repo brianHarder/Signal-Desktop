@@ -1,4 +1,4 @@
-FROM ubuntu:jammy-20250714@sha256:1ec65b2719518e27d4d25f104d93f9fac60dc437f81452302406825c46fcc9cb
+FROM ubuntu:jammy-20260930@sha256:0a9887931b0e38af2e3487ed39e29436b0535c4f3f52e57745baaf79d1898956
 
 # Allows package builders like FPM (used for creating the .deb package
 # on linux) to make their build timestamps determistic. Otherwise, a fresh
@@ -10,6 +10,7 @@ ENV SOURCE_DATE_EPOCH=1
 # Due to some issues with NVM reading .nvmrc, we define the version
 # as an environment variable and use that instead.
 ARG NODE_VERSION
+ARG PNPM_VERSION
 
 ENV SIGNAL_ENV=production
 
@@ -50,7 +51,7 @@ ENV PATH=$NVM_DIR/versions/node/v$NODE_VERSION/bin:$PATH
 ENV CI=true
 
 # Install pnpm
-RUN npm install -g pnpm@10.6.4
+RUN npm install -g pnpm@${PNPM_VERSION}
 
 RUN git config --global --add safe.directory /project
 

@@ -11,7 +11,7 @@
   overflow: auto;
 }
 
-.CallingRaisedHandsList__width-container {
+.CallingRaisedHandsList__modal .module-modal-host__width-container {
   display: flex;
   flex-direction: column;
   width: 320px;
@@ -24,23 +24,15 @@
   overflow: hidden;
 }
 
-.CallingRaisedHandsList__overlay {
+.CallingRaisedHandsList__modal .module-modal-host__overlay {
   background: transparent;
 }
 
-.CallingRaisedHandsList__overlay-container {
+.CallingRaisedHandsList__modal .module-modal-host__overlay-container {
   flex-direction: column;
   padding: 0;
   justify-content: flex-end;
   align-items: start;
-}
-
-.CallingRaisedHandsList__Overlay {
-  align-items: start;
-}
-
-.CallingRaisedHandsList__TitleHint {
-  font-weight: normal;
 }
 
 .CallingRaisedHandsList .module-calling-participants-list__contact:last-child {
@@ -63,10 +55,8 @@
     z-index: variables.$z-index-above-above-base;
   }
 
-  @include mixins.keyboard-mode {
-    &:focus {
-      outline: 2px solid variables.$color-ultramarine;
-    }
+  &:focus-visible {
+    @include mixins.axo-focus-ring;
   }
 }
 
@@ -84,19 +74,6 @@
   );
 }
 
-.CallingRaisedHandsList__NameHandIcon {
-  display: inline-block;
-  $icon-size: 16px;
-  width: $icon-size;
-  height: $icon-size;
-  content: '';
-
-  @include mixins.color-svg(
-    '../images/icons/v3/raise_hand/raise_hand-light.svg',
-    variables.$color-gray-15
-  );
-}
-
 .CallingRaisedHandsList__LowerMyHandLink {
   @include mixins.button-reset;
   & {
@@ -107,9 +84,7 @@
     color: variables.$color-ultramarine-pastel;
   }
 
-  @include mixins.keyboard-mode {
-    &:focus {
-      outline: 2px solid variables.$color-ultramarine;
-    }
+  &:focus-visible {
+    @include mixins.axo-focus-ring;
   }
 }

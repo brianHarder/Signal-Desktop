@@ -8,7 +8,6 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  user-select: none;
   max-width: 500px;
   width: 100%;
 
@@ -51,7 +50,7 @@
         outline: 2px solid variables.$color-gray-05;
       }
 
-      &__spinner__arc {
+      &__spinner .module-spinner__arc {
         background-color: var(--fg-color);
       }
 
@@ -307,11 +306,6 @@
     .module-Button:not(:first-child) {
       margin-inline-start: 4px;
     }
-  }
-
-  &__done {
-    width: 100%;
-    margin-block-end: 8px;
   }
 
   &__colors {

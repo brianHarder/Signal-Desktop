@@ -25,8 +25,12 @@
       margin-top: 4px;
       position: relative;
       transition: background-color 100ms ease-out;
-      user-select: none;
       width: 80px;
+    }
+
+    &--nothing {
+      background-color: var(--AvatarPreview__avatar-bg);
+      color: var(--AvatarPreview__avatar-fg);
     }
 
     &--loading {
@@ -38,16 +42,15 @@
       background-position: center center;
     }
 
-    @include mixins.keyboard-mode {
-      &:focus {
-        box-shadow: 0 0 0 3px variables.$color-ultramarine;
-      }
+    &:focus-visible {
+      @include mixins.axo-focus-ring;
     }
   }
 
   &__group {
     -webkit-mask: url('../images/icons/v3/group/group.svg') no-repeat center;
     -webkit-mask-size: 70%;
+    background-color: currentColor;
     height: 100%;
     width: 100%;
   }
@@ -55,6 +58,15 @@
   &__note_to_self {
     -webkit-mask: url('../images/icons/v3/note/note.svg') no-repeat center;
     -webkit-mask-size: 70%;
+    background-color: currentColor;
+    height: 100%;
+    width: 100%;
+  }
+
+  &__contact {
+    -webkit-mask: url('../images/icons/v3/person/person.svg') no-repeat center;
+    -webkit-mask-size: 70%;
+    background-color: currentColor;
     height: 100%;
     width: 100%;
   }
@@ -116,6 +128,10 @@
         height: 16px;
         width: 16px;
       }
+    }
+
+    &:focus-visible {
+      @include mixins.axo-focus-ring;
     }
   }
 }

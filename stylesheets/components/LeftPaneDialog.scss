@@ -28,7 +28,6 @@
   min-height: 64px;
   padding-block: 12px;
   padding-inline: 16px 14px;
-  user-select: none;
   width: 100%;
   position: relative;
 
@@ -68,7 +67,7 @@
   }
 
   &__spinner {
-    &__arc {
+    .module-spinner__arc {
       background-color: variables.$color-black;
 
       // Needed for specificity
@@ -77,7 +76,7 @@
       }
     }
 
-    &__circle {
+    .module-spinner__circle {
       background-color: variables.$color-accent-yellow;
     }
   }
@@ -101,7 +100,7 @@
     -webkit-mask-size: contain;
 
     @media (forced-colors: active) {
-      background-color: WindowText;
+      background-color: CanvasText;
     }
 
     &--relink {
@@ -143,7 +142,7 @@
       .LeftPaneDialog__icon {
         background-color: $warning-text-color;
         @media (forced-colors: active) {
-          background-color: WindowText;
+          background-color: CanvasText;
         }
       }
     }
@@ -176,9 +175,9 @@
       height: 100%;
 
       @media (forced-colors: active) {
-        background-color: WindowText;
+        background-color: CanvasText;
         @include mixins.dark-theme {
-          background-color: WindowText;
+          background-color: CanvasText;
         }
       }
     }
@@ -237,9 +236,9 @@
     text-align: inherit;
   }
 
-  &,
-  &__tooltip {
-    &--error {
+  & {
+    &--error,
+    &__tooltip--error {
       background-color: $error-background-color;
       color: $error-text-color;
 
@@ -257,7 +256,8 @@
       }
     }
 
-    &--info {
+    &--info,
+    &__tooltip--info {
       width: unset;
       margin-inline: 10px;
       margin-block-end: 6px;
@@ -267,7 +267,7 @@
 
       @include mixins.light-theme {
         background-color: variables.$color-white;
-        --tooltip-background-color: variables.$color-white;
+        --tooltip-background-color: #{variables.$color-white};
         border: 1px solid variables.$color-gray-20;
       }
       @include mixins.dark-theme {
@@ -297,7 +297,8 @@
       }
     }
 
-    &--warning {
+    &--warning,
+    &__tooltip--warning {
       background-color: $warning-background-color;
       color: $warning-text-color;
 
@@ -314,7 +315,7 @@
         background-color: $warning-text-color;
 
         @media (forced-colors: active) {
-          background-color: WindowText;
+          background-color: CanvasText;
         }
       }
 
@@ -322,7 +323,7 @@
         background-color: $warning-text-color;
 
         @media (forced-colors: active) {
-          background-color: WindowText;
+          background-color: CanvasText;
         }
       }
 

@@ -1,0 +1,341 @@
+// Copyright 2022 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
+
+import { useEffect, useState, type JSX } from 'react';
+import { v4 as generateUuid } from 'uuid';
+
+import { createPortal } from 'react-dom';
+import type { LinkPreviewSourceType } from '../types/LinkPreview.std.ts';
+import type { LinkPreviewForUIType } from '../types/message/LinkPreviews.std.ts';
+import type { LocalizerType, ThemeType } from '../types/Util.std.ts';
+import type { PropsType as SendStoryModalPropsType } from './SendStoryModal.dom.tsx';
+import type { StoryDistributionIdString } from '../types/StoryDistributionId.std.ts';
+import type { StoryDraftAttachmentType } from '../types/Stories.std.ts';
+import type { imageToBlurHash } from '../util/imageToBlurHash.dom.ts';
+import {
+  getLocalAttachmentUrl,
+  AttachmentDisposition,
+} from '../util/getLocalAttachmentUrl.std.ts';
+import type { PropsType as MediaEditorPropsType } from './MediaEditor.dom.tsx';
+
+import { isVideoAttachment } from '../util/Attachment.std.ts';
+import { SendStoryModal } from './SendStoryModal.dom.tsx';
+
+import { MediaEditor } from './MediaEditor.dom.tsx';
+import { TextStoryCreator } from './TextStoryCreator.dom.tsx';
+import type { DraftBodyRanges } from '../types/BodyRange.std.ts';
+import type { processAttachment } from '../util/processAttachment.preload.ts';
+import { AxoTheme } from '../axo/AxoTheme.dom.tsx';
+
+function usePortalElement(testid: string): HTMLDivElement | null {
+  const [element, setElement] = useState<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const div = document.createElement('div');
+    div.dataset.testid = testid;
+    document.body.appendChild(div);
+    // oxlint-disable-next-line react/set-state-in-effect
+    setElement(div);
+    return () => {
+      document.body.removeChild(div);
+    };
+  }, [testid]);
+
+  return element;
+}
+
+export type PropsType = {
+  debouncedMaybeGrabLinkPreview: (
+    message: string,
+    source: LinkPreviewSourceType
+  ) => unknown;
+  file?: File;
+  i18n: LocalizerType;
+  isSending: boolean;
+  linkPreview?: LinkPreviewForUIType;
+  onClose: () => unknown;
+  onSend: (
+    listIds: Array<StoryDistributionIdString>,
+    conversationIds: Array<string>,
+    attachment: StoryDraftAttachmentType,
+    bodyRanges: DraftBodyRanges | undefined
+  ) => unknown;
+  imageToBlurHash: typeof imageToBlurHash;
+  processAttachment: typeof processAttachment;
+  sendStoryModalOpenStateChanged: (isOpen: boolean) => unknown;
+  theme: ThemeType;
+} & Pick<
+  SendStoryModalPropsType,
+  | 'candidateConversations'
+  | 'distributionLists'
+  | 'getPreferredBadge'
+  | 'groupConversations'
+  | 'groupStories'
+  | 'hasFirstStoryPostExperience'
+  | 'me'
+  | 'ourConversationId'
+  | 'onDeleteList'
+  | 'onDistributionListCreated'
+  | 'onHideMyStoriesFrom'
+  | 'onRemoveMembers'
+  | 'onRepliesNReactionsChanged'
+  | 'onSelectedStoryList'
+  | 'onViewersUpdated'
+  | 'setMyStoriesToAllSignalConnections'
+  | 'signalConnections'
+  | 'toggleGroupsForStorySend'
+  | 'mostRecentActiveStoryTimestampByGroupOrDistributionList'
+  | 'toggleSignalConnectionsModal'
+  | 'onMediaPlaybackStart'
+> &
+  Pick<
+    MediaEditorPropsType,
+    | 'isFormattingEnabled'
+    | 'emojiSkinToneDefault'
+    | 'onMarkStickerAsFavorite'
+    | 'onSelectEmoji'
+    | 'onTextTooLong'
+    | 'platform'
+    | 'sortedGroupMembers'
+    | 'convertDraftBodyRangesIntoHydrated'
+  >;
+
+export function StoryCreator({
+  candidateConversations,
+  convertDraftBodyRangesIntoHydrated,
+  debouncedMaybeGrabLinkPreview,
+  distributionLists,
+  file,
+  getPreferredBadge,
+  groupConversations,
+  groupStories,
+  hasFirstStoryPostExperience,
+  i18n,
+  imageToBlurHash,
+  isFormattingEnabled,
+  isSending,
+  linkPreview,
+  me,
+  mostRecentActiveStoryTimestampByGroupOrDistributionList,
+  onClose,
+  onDeleteList,
+  onDistributionListCreated,
+  onHideMyStoriesFrom,
+  onMarkStickerAsFavorite,
+  onMediaPlaybackStart,
+  onSelectEmoji,
+  onRemoveMembers,
+  onRepliesNReactionsChanged,
+  onSelectedStoryList,
+  onSend,
+  onTextTooLong,
+  onViewersUpdated,
+  ourConversationId,
+  platform,
+  processAttachment,
+  sendStoryModalOpenStateChanged,
+  setMyStoriesToAllSignalConnections,
+  signalConnections,
+  emojiSkinToneDefault,
+  sortedGroupMembers,
+  theme,
+  toggleGroupsForStorySend,
+  toggleSignalConnectionsModal,
+}: PropsType): JSX.Element | null {
+  const portalElement = usePortalElement('StoryCreatorPortal');
+
+  const [draftAttachment, setDraftAttachment] = useState<
+    StoryDraftAttachmentType | undefined
+  >();
+  const [isReadyToSend, setIsReadyToSend] = useState(false);
+  const [attachmentUrl, setAttachmentUrl] = useState<string | undefined>();
+  const [bodyRanges, setBodyRanges] = useState<DraftBodyRanges | undefined>();
+
+  useEffect(() => {
+    let unmounted = false;
+
+    async function loadAttachment(): Promise<void> {
+      if (!file || unmounted) {
+        return;
+      }
+
+      const draft = await processAttachment(file, {
+        // Screenshot is used in `getStoryBackground`
+        generateScreenshot: true,
+        flags: null,
+        clientUuid: generateUuid(),
+      });
+      if (!draft || draft.pending || unmounted) {
+        return;
+      }
+
+      const attachment = {
+        ...draft,
+        url: getLocalAttachmentUrl(draft, {
+          disposition: AttachmentDisposition.Draft,
+        }),
+        screenshot:
+          draft.screenshot == null
+            ? undefined
+            : {
+                ...draft.screenshot,
+                url: getLocalAttachmentUrl(draft.screenshot, {
+                  disposition: AttachmentDisposition.Draft,
+                }),
+              },
+      };
+
+      if (isVideoAttachment(draft)) {
+        setAttachmentUrl(undefined);
+        setIsReadyToSend(true);
+      } else {
+        setAttachmentUrl(attachment.url);
+
+        // Needs editing in MediaEditor
+        setIsReadyToSend(false);
+      }
+
+      setDraftAttachment({
+        type: 'media',
+        attachment,
+      });
+    }
+
+    void loadAttachment();
+
+    return () => {
+      unmounted = true;
+    };
+  }, [file, processAttachment]);
+
+  useEffect(() => {
+    if (draftAttachment === undefined) {
+      sendStoryModalOpenStateChanged(false);
+      // oxlint-disable-next-line react/set-state-in-effect
+      setIsReadyToSend(false);
+    } else {
+      sendStoryModalOpenStateChanged(true);
+    }
+  }, [draftAttachment, sendStoryModalOpenStateChanged]);
+
+  return portalElement != null
+    ? createPortal(
+        <AxoTheme.Override theme="force-dark">
+          {draftAttachment && isReadyToSend && (
+            <SendStoryModal
+              draftAttachment={draftAttachment}
+              candidateConversations={candidateConversations}
+              distributionLists={distributionLists}
+              getPreferredBadge={getPreferredBadge}
+              groupConversations={groupConversations}
+              groupStories={groupStories}
+              hasFirstStoryPostExperience={hasFirstStoryPostExperience}
+              ourConversationId={ourConversationId}
+              i18n={i18n}
+              me={me}
+              onClose={() => setIsReadyToSend(false)}
+              onDeleteList={onDeleteList}
+              onDistributionListCreated={onDistributionListCreated}
+              onHideMyStoriesFrom={onHideMyStoriesFrom}
+              onRemoveMembers={onRemoveMembers}
+              onRepliesNReactionsChanged={onRepliesNReactionsChanged}
+              onSelectedStoryList={onSelectedStoryList}
+              onSend={(listIds, groupIds) => {
+                onSend(listIds, groupIds, draftAttachment, bodyRanges);
+                setDraftAttachment(undefined);
+              }}
+              onViewersUpdated={onViewersUpdated}
+              onMediaPlaybackStart={onMediaPlaybackStart}
+              setMyStoriesToAllSignalConnections={
+                setMyStoriesToAllSignalConnections
+              }
+              signalConnections={signalConnections}
+              toggleGroupsForStorySend={toggleGroupsForStorySend}
+              mostRecentActiveStoryTimestampByGroupOrDistributionList={
+                mostRecentActiveStoryTimestampByGroupOrDistributionList
+              }
+              theme={theme}
+              toggleSignalConnectionsModal={toggleSignalConnectionsModal}
+            />
+          )}
+          {draftAttachment && attachmentUrl && (
+            <MediaEditor
+              doneButtonLabel={i18n('icu:next2')}
+              getPreferredBadge={getPreferredBadge}
+              i18n={i18n}
+              imageSrc={attachmentUrl}
+              imageToBlurHash={imageToBlurHash}
+              isCreatingStory
+              isFormattingEnabled={isFormattingEnabled}
+              isSending={isSending}
+              convertDraftBodyRangesIntoHydrated={
+                convertDraftBodyRangesIntoHydrated
+              }
+              onClose={onClose}
+              onDone={async ({
+                contentType,
+                data,
+                blurHash,
+                caption,
+                captionBodyRanges,
+              }) => {
+                const clientUuid = generateUuid();
+                const newAttachment = await processAttachment(
+                  new File([data], clientUuid, { type: contentType }),
+                  {
+                    generateScreenshot: false,
+                    disableTranscoding: true,
+                    flags: null,
+                    clientUuid,
+                  }
+                );
+                if (newAttachment == null || newAttachment.pending) {
+                  return;
+                }
+                setDraftAttachment({
+                  type: 'media',
+                  attachment: {
+                    ...newAttachment,
+                    // We don't do transcoding, but filename still has to be
+                    // stripped
+                    fileName: undefined,
+                    caption,
+                    blurHash,
+                  },
+                });
+                setBodyRanges(captionBodyRanges);
+                setIsReadyToSend(true);
+              }}
+              onSelectEmoji={onSelectEmoji}
+              onTextTooLong={onTextTooLong}
+              onMarkStickerAsFavorite={onMarkStickerAsFavorite}
+              ourConversationId={ourConversationId}
+              platform={platform}
+              emojiSkinToneDefault={emojiSkinToneDefault}
+              sortedGroupMembers={sortedGroupMembers}
+              draftText={null}
+              draftBodyRanges={null}
+            />
+          )}
+          {!file && (
+            <TextStoryCreator
+              debouncedMaybeGrabLinkPreview={debouncedMaybeGrabLinkPreview}
+              i18n={i18n}
+              isSending={isSending}
+              linkPreview={linkPreview}
+              onClose={onClose}
+              onDone={textAttachment => {
+                setDraftAttachment({
+                  type: 'text',
+                  attachment: textAttachment,
+                });
+                setIsReadyToSend(true);
+              }}
+              onSelectEmoji={onSelectEmoji}
+            />
+          )}
+        </AxoTheme.Override>,
+        portalElement
+      )
+    : null;
+}

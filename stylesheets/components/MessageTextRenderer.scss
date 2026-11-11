@@ -42,13 +42,8 @@
       // make child text invisible
       color: transparent;
 
-      // fix outline
-      outline: none;
-
-      @include mixins.keyboard-mode {
-        &:focus {
-          box-shadow: 0 0 0px 1px variables.$color-ultramarine;
-        }
+      &:focus-visible {
+        @include mixins.axo-focus-ring;
       }
     }
 
@@ -68,7 +63,8 @@
 
     // The left pane
     &--spoiler-ConversationList,
-    &--spoiler-SearchResult {
+    &--spoiler-SearchResult,
+    &--spoiler-PinnedMessagesBar {
       @include mixins.light-theme {
         background-color: variables.$color-gray-60;
       }
@@ -87,7 +83,7 @@
       }
     }
 
-    &--spoiler-Timeline--incoming {
+    &--spoiler-Timeline.MessageTextRenderer__formatting--spoiler-incoming {
       @include mixins.light-theme {
         background-color: variables.$color-gray-90;
       }
@@ -95,7 +91,7 @@
         background-color: variables.$color-gray-05;
       }
     }
-    &--spoiler-Timeline--outgoing {
+    &--spoiler-Timeline.MessageTextRenderer__formatting--spoiler-outgoing {
       @include mixins.light-theme {
         background-color: rgba(255, 255, 255, 0.9);
       }

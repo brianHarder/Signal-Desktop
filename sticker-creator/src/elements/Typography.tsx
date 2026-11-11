@@ -1,48 +1,48 @@
 // Copyright 2023 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import React from 'react';
-import classnames from 'classnames';
+import { type ReactNode, type HTMLAttributes, memo } from 'react';
+import classNames from 'classnames';
 
 import styles from './Typography.module.scss';
 
 export type Props = {
-  children: React.ReactNode;
+  children: ReactNode;
 };
 
-export type HeadingProps = React.HTMLAttributes<HTMLHeadingElement>;
-export type ParagraphProps = React.HTMLAttributes<HTMLParagraphElement> & {
+export type HeadingProps = HTMLAttributes<HTMLHeadingElement>;
+export type ParagraphProps = HTMLAttributes<HTMLParagraphElement> & {
   center?: boolean;
   wide?: boolean;
   secondary?: boolean;
 };
-export type SpanProps = React.HTMLAttributes<HTMLSpanElement>;
+export type SpanProps = HTMLAttributes<HTMLSpanElement>;
 
-export const H1 = React.memo(function H1Inner({
+export const H1 = memo(function H1Inner({
   children,
   className,
   ...rest
 }: Props & HeadingProps) {
   return (
-    <h1 className={classnames(styles.h1, className)} {...rest}>
+    <h1 className={classNames(styles.h1, className)} {...rest}>
       {children}
     </h1>
   );
 });
 
-export const H2 = React.memo(function H2Inner({
+export const H2 = memo(function H2Inner({
   children,
   className,
   ...rest
 }: Props & HeadingProps) {
   return (
-    <h2 className={classnames(styles.h2, className)} {...rest}>
+    <h2 className={classNames(styles.h2, className)} {...rest}>
       {children}
     </h2>
   );
 });
 
-export const Text = React.memo(function TextInner({
+export const Text = memo(function TextInner({
   children,
   className,
   center,
@@ -51,7 +51,7 @@ export const Text = React.memo(function TextInner({
 }: Props & ParagraphProps) {
   return (
     <p
-      className={classnames(
+      className={classNames(
         center ? styles.textCenter : styles.text,
         secondary ? styles.secondary : null,
         className
@@ -63,13 +63,13 @@ export const Text = React.memo(function TextInner({
   );
 });
 
-export const Inline = React.memo(function InlineInner({
+export const Inline = memo(function InlineInner({
   children,
   className,
   ...rest
 }: Props & SpanProps) {
   return (
-    <span className={classnames(styles.text, className)} {...rest}>
+    <span className={classNames(styles.text, className)} {...rest}>
       {children}
     </span>
   );

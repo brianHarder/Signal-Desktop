@@ -38,7 +38,7 @@
 
   &__error {
     @include mixins.color-svg(
-      '../images/full-screen-flow/alert-outline.svg',
+      '../images/alert-outline.svg',
       variables.$color-white
     );
     & {
@@ -62,11 +62,11 @@
 
   &__spinner {
     @include mixins.dark-theme {
-      &__circle {
+      .module-spinner__circle {
         background-color: variables.$color-white;
       }
 
-      &__arc {
+      .module-spinner__arc {
         background-color: variables.$color-gray-75;
       }
     }

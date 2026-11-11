@@ -7,30 +7,10 @@
 .ChatColorPicker {
   $bubble-size: 52px;
 
-  &__container {
-    max-width: 748px;
-    margin-block: 0;
-    margin-inline: auto;
-
-    hr {
-      @include mixins.light-theme {
-        border-color: variables.$color-gray-15;
-      }
-
-      @include mixins.dark-theme {
-        border-color: variables.$color-gray-75;
-      }
-    }
-  }
-
-  &__modal__body.module-Modal__body {
-    overflow-x: hidden;
-  }
-
   &__bubbles {
     align-items: center;
     display: grid;
-    grid-gap: 24px;
+    gap: 24px;
     grid-template-columns: repeat(auto-fit, $bubble-size);
     justify-content: center;
     margin-block: 20px;
@@ -41,6 +21,7 @@
     align-items: center;
     display: flex;
     justify-content: center;
+    background: var(--chat-color-picker-bg);
     @include mixins.color-bubble($bubble-size);
 
     &--selected {
@@ -53,6 +34,9 @@
 
     &:focus {
       border-color: variables.$color-ultramarine;
+    }
+
+    &:focus-visible {
       outline: none;
     }
 

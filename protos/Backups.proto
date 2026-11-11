@@ -5,6 +5,7 @@ syntax = "proto3";
 package signalbackups;
 
 option java_package = "org.thoughtcrime.securesms.backup.v2.proto";
+option swift_prefix = "BackupProto_";
 
 message BackupInfo {
   uint64 version = 1;
@@ -12,6 +13,7 @@ message BackupInfo {
   bytes mediaRootBackupKey = 3; // 32-byte random value generated when the backup is uploaded for the first time.
   string currentAppVersion = 4;
   string firstAppVersion = 5;
+  bytes debugInfo = 6; // Client-specific data field for debug info during testing
 }
 
 // Frames must follow in the following ordering rules:
@@ -37,7 +39,7 @@ message Frame {
     Recipient recipient = 2;
     Chat chat = 3;
     ChatItem chatItem = 4;
-    StickerPack stickerPack = 5;
+    StickerPack installedStickerPack = 5;
     AdHocCall adHocCall = 6;
     NotificationProfile notificationProfile = 7;
     ChatFolder chatFolder = 8;
@@ -68,7 +70,47 @@ message AccountData {
     Color color = 3;
   }
 
+  enum SentMediaQuality {
+    UNKNOWN_QUALITY = 0; // Interpret as "Standard"
+    STANDARD = 1;
+    HIGH = 2;
+  }
+
+  message AutoDownloadSettings {
+    enum AutoDownloadOption {
+      UNKNOWN = 0; // Interpret as "Never"
+      NEVER = 1;
+      WIFI = 2;
+      WIFI_AND_CELLULAR = 3;
+    }
+
+    AutoDownloadOption images = 1;
+    AutoDownloadOption audio = 2;
+    AutoDownloadOption video = 3;
+    AutoDownloadOption documents = 4;
+  }
+
+  enum AppTheme {
+    UNKNOWN_APP_THEME = 0; // Interpret as "System"
+    SYSTEM = 1;
+    LIGHT = 2;
+    DARK = 3;
+  }
+
+  enum CallsUseLessDataSetting {
+    UNKNOWN_CALL_DATA_SETTING = 0; // Interpret as "Never"
+    NEVER = 1;
+    MOBILE_DATA_ONLY = 2;
+    WIFI_AND_MOBILE_DATA = 3;
+  }
+
   message AccountSettings {
+    enum UnreadBadgeType {
+      UNKNOWN_BADGE_TYPE = 0; // Interpret as "Unread messages"
+      UNREAD_MESSAGES = 1;
+      UNREAD_CHATS = 2;
+    }
+
     bool readReceipts = 1;
     bool sealedSenderIndicators = 2;
     bool typingIndicators = 3;
@@ -91,6 +133,25 @@ message AccountData {
     bool optimizeOnDeviceStorage = 20;
     // See zkgroup for integer particular values. Unset if backups are not enabled.
     optional uint64 backupTier = 21;
+    reserved /* showSealedSenderIndicators */ 22;
+    SentMediaQuality defaultSentMediaQuality = 23;
+    AutoDownloadSettings autoDownloadSettings = 24;
+    reserved /* wifiAutoDownloadSettings */ 25;
+    optional uint32 screenLockTimeoutMinutes = 26; // If unset, consider screen lock to be disabled.
+    optional bool pinReminders = 27; // If unset, consider pin reminders to be enabled.
+    AppTheme appTheme = 28;  // If unset, treat the same as "Unknown" case
+    CallsUseLessDataSetting callsUseLessDataSetting = 29;  // If unset, treat the same as "Unknown" case
+    bool allowSealedSenderFromAnyone = 30;
+    bool allowAutomaticKeyVerification = 31;
+    bool hasSeenAdminDeleteEducationDialog = 32;
+    UnreadBadgeType unreadBadgeType = 33;
+    optional bool includeMutedChatsInBadge = 34; // If unset, consider this disabled
+    optional bool reactionNotifications = 35; // If unset, consider this enabled
+    optional bool notifyForCallsIfMuted = 36; // If unset, consider this disabled
+    optional bool notifyForMentionsIfMuted = 37; // If unset, consider this enabled
+    optional bool notifyForRepliesIfMuted = 38; // If unset, consider this enabled
+    optional bool showUnreadReminders = 39; // If unset, consider this enabled
+    optional bool notifyWhenContactJoins = 40; // If unset, consider this disabled
   }
 
   message SubscriberData {
@@ -111,6 +172,18 @@ message AccountData {
     }
   }
 
+  message AndroidSpecificSettings {
+    enum NavigationBarSize {
+      UNKNOWN_BAR_SIZE = 0; // Intepret as "Normal"
+      NORMAL = 1;
+      COMPACT = 2;
+    }
+
+    bool useSystemEmoji = 1;
+    bool screenshotSecurity = 2;
+    NavigationBarSize navigationBarSize = 3; // If unset, treat the same as "Unknown" case
+  }
+
   bytes profileKey = 1;
   optional string username = 2;
   UsernameLink usernameLink = 3;
@@ -122,6 +195,10 @@ message AccountData {
   AccountSettings accountSettings = 9;
   IAPSubscriberData backupsSubscriberData = 10;
   string svrPin = 11;
+  AndroidSpecificSettings androidSpecificSettings = 12;
+  string bioText = 13;
+  string bioEmoji = 14;
+  reserved /*keyTransparencyData*/ 15;
 }
 
 message Recipient {
@@ -210,6 +287,10 @@ message Contact {
   string systemFamilyName = 19;
   string systemNickname = 20;
   optional AvatarColor avatarColor = 21;
+  // Opaque blob containing key transparency data for the contact
+  optional bytes keyTransparencyData = 22;
+  uint64 blockedAtTimestamp = 23; // if `blocked` is true, 0 means unknown block time
+  Name sharedName = 24; // absent iff both `given` and `family` are empty, name provided by third party
 }
 
 message Group {
@@ -226,6 +307,7 @@ message Group {
   GroupSnapshot snapshot = 5;
   bool blocked = 6;
   optional AvatarColor avatarColor = 7;
+  uint64 blockedAtTimestamp = 8; // if `blocked` is true, 0 means unknown block time
 
   // These are simply plaintext copies of the groups proto from Groups.proto.
   // They should be kept completely in-sync with Groups.proto.
@@ -244,8 +326,9 @@ message Group {
     repeated MemberPendingProfileKey membersPendingProfileKey = 8;
     repeated MemberPendingAdminApproval membersPendingAdminApproval = 9;
     bytes inviteLinkPassword = 10;
-    bool announcements_only = 12;
-    repeated MemberBanned members_banned = 13;
+    bool announcementsOnly = 12;
+    repeated MemberBanned membersBanned = 13;
+    bool terminated = 14;
   }
 
   message GroupAttributeBlob {
@@ -270,6 +353,8 @@ message Group {
     reserved /*profileKey*/ 3; // This field is ignored in Backups, in favor of Contact frames for members
     reserved /*presentation*/ 4; // This field is deprecated in the context of static group state
     uint32 joinedAtVersion = 5;
+    string labelEmoji = 6;
+    string labelString = 7;
   }
 
   message MemberPendingProfileKey {
@@ -302,6 +387,7 @@ message Group {
     AccessRequired attributes = 1;
     AccessRequired members = 2;
     AccessRequired addFromInviteLink = 3;
+    AccessRequired memberLabel = 4;
   }
 }
 
@@ -319,9 +405,13 @@ message Chat {
   optional uint64 expirationTimerMs = 5;
   optional uint64 muteUntilMs = 6; // INT64_MAX (2^63 - 1) = "always muted".
   bool markedUnread = 7;
-  bool dontNotifyForMentionsIfMuted = 8;
+  bool dontNotifyForMentionsIfMuted = 8; // will be deprecated in favor of [notifyForMentionsIfMuted]
   ChatStyle style = 9;
   uint32 expireTimerVersion = 10;
+  optional bool notifyForCallsIfMuted = 11; // If unset, use default global settings
+  optional bool notifyForMentionsIfMuted = 12; // If unset, use default global settings. Only for groups. If [dontNotifyForMentionsIfMuted] is true, this should be initialized to false.
+  optional bool notifyForRepliesIfMuted = 13; // If unset, use default global settings. Only for groups.
+  optional bool showUnreadReminders = 14; // If unset, use default global settings
 }
 
 /**
@@ -344,7 +434,7 @@ message CallLink {
   string name = 3;
   Restrictions restrictions = 4;
   uint64 expirationMs = 5;
-  optional bytes epoch = 6;
+  reserved /*epoch*/ 6;
 }
 
 message AdHocCall {
@@ -402,6 +492,14 @@ message ChatItem {
   message DirectionlessMessageDetails {
   }
 
+  message PinDetails {
+    uint64 pinnedAtTimestamp = 1;
+    oneof pinExpiry {
+      uint64 pinExpiresAtTimestamp = 2; // timestamp when the pin should expire
+      bool pinNeverExpires = 3;
+    }
+  }
+
   uint64 chatId = 1;   // conversation id
   uint64 authorId = 2; // recipient id
   uint64 dateSent = 3;
@@ -428,7 +526,11 @@ message ChatItem {
     GiftBadge giftBadge = 17;
     ViewOnceMessage viewOnceMessage = 18;
     DirectStoryReplyMessage directStoryReplyMessage = 19; // group story reply messages are not backed up
+    Poll poll = 20;
+    AdminDeletedMessage adminDeletedMessage = 22;
   }
+
+  PinDetails pinDetails = 21; // only set if message is pinned
 }
 
 message SendStatus {
@@ -589,6 +691,12 @@ message ContactAttachment {
     string nickname = 6;
   }
 
+  // The sharer's Signal nickname for this contact
+  message SignalNickname {
+    string given = 1;
+    string family = 2;
+  }
+
   message Phone {
     enum Type {
       UNKNOWN = 0; // Interpret as "Home"
@@ -637,11 +745,15 @@ message ContactAttachment {
   }
 
   optional Name name = 1;
+  reserved 2;
   repeated Phone number = 3;
   repeated Email email = 4;
   repeated PostalAddress address = 5;
   optional FilePointer avatar = 6;
   string organization = 7;
+  bytes aci = 8; // should be 16 bytes
+  optional SignalNickname nickname = 9; // absent iff both `given` and `family` are empty
+  string note = 10;
 }
 
 message StickerMessage {
@@ -694,7 +806,6 @@ message MessageAttachment {
 }
 
 message FilePointer {
-
   message LocatorInfo {
     // Must be non-empty if transitCdnKey or plaintextHash are set/nonempty.
     // Otherwise must be empty.
@@ -752,6 +863,11 @@ message FilePointer {
   optional string caption = 10;
   optional string blurHash = 11;
   LocatorInfo locatorInfo = 13;
+  // Waveform for audio attachments. Each byte represents a "bar" in the
+  // waveform, with 0 as silence 255 as loudest. At most 100 bytes/bars.
+  optional bytes audioWaveform = 14;
+  // Duration of an audio attachment, in seconds.
+  optional float audioDurationSeconds = 15;
 }
 
 message Quote {
@@ -760,6 +876,7 @@ message Quote {
     NORMAL = 1;
     GIFT_BADGE = 2;
     VIEW_ONCE = 3;
+    POLL = 4;
   }
 
   message QuotedAttachment {
@@ -806,6 +923,30 @@ message Reaction {
   uint64 sortOrder = 4;
 }
 
+message Poll {
+
+  message PollOption {
+
+    message PollVote {
+      uint64 voterId = 1; // A direct reference to Recipient proto id. Must be self or contact.
+      uint32 voteCount = 2; // Tracks how many times you voted.
+    }
+
+    string option = 1; // Between 1-100 characters
+    repeated PollVote votes = 2;
+  }
+
+  string question = 1; // Between 1-100 characters
+  bool allowMultiple = 2;
+  repeated PollOption options = 3; // At least two
+  bool hasEnded = 4;
+  repeated Reaction reactions = 5;
+}
+
+message AdminDeletedMessage {
+  uint64 adminId = 1; // id of the admin that deleted the message
+}
+
 message ChatUpdateMessage {
   // If unset, importers should ignore the update message without throwing an error.
   oneof update {
@@ -818,6 +959,8 @@ message ChatUpdateMessage {
     IndividualCall individualCall = 7;
     GroupCall groupCall = 8;
     LearnedProfileChatUpdate learnedProfileChange = 9;
+    PollTerminateUpdate pollTerminate = 10;
+    PinMessageUpdate pinMessage = 11;
   }
 }
 
@@ -925,6 +1068,7 @@ message LearnedProfileChatUpdate {
   oneof previousName {
     uint64 e164 = 1;
     string username = 2;
+    string sharedName = 3;
   }
 }
 
@@ -974,6 +1118,8 @@ message GroupChangeChatUpdate {
       GroupV2MigrationDroppedMembersUpdate groupV2MigrationDroppedMembersUpdate = 32;
       GroupSequenceOfRequestsAndCancelsUpdate groupSequenceOfRequestsAndCancelsUpdate = 33;
       GroupExpirationTimerUpdate groupExpirationTimerUpdate = 34;
+      GroupMemberLabelAccessLevelChangeUpdate groupMemberLabelAccessLevelChangeUpdate = 35;
+      GroupTerminateChangeUpdate groupTerminateChangeUpdate = 36;
     }
   }
 
@@ -1016,6 +1162,11 @@ enum GroupV2AccessLevel {
 }
 
 message GroupMembershipAccessLevelChangeUpdate {
+  optional bytes updaterAci = 1;
+  GroupV2AccessLevel accessLevel = 2;
+}
+
+message GroupMemberLabelAccessLevelChangeUpdate {
   optional bytes updaterAci = 1;
   GroupV2AccessLevel accessLevel = 2;
 }
@@ -1123,7 +1274,7 @@ message GroupJoinRequestCanceledUpdate {
   bytes requestorAci = 1;
 }
 
-// A single requestor has requested to join and canceled
+// A single requestor has requested to join and cancelled
 // their request repeatedly with no other updates in between.
 // The last action encompassed by this update is always a
 // cancellation; if there was another open request immediately
@@ -1183,6 +1334,20 @@ message GroupExpirationTimerUpdate {
   optional bytes updaterAci = 2;
 }
 
+message GroupTerminateChangeUpdate {
+  optional bytes updaterAci = 1;
+}
+
+message PollTerminateUpdate {
+  uint64 targetSentTimestamp = 1;
+  string question = 2; // Between 1-100 characters
+}
+
+message PinMessageUpdate {
+  uint64 targetSentTimestamp = 1;
+  uint64 authorId = 2; // recipient id
+}
+
 message StickerPack {
   bytes packId = 1;
   bytes packKey = 2;
@@ -1190,6 +1355,12 @@ message StickerPack {
 
 message ChatStyle {
   message Gradient {
+    // Color ordering:
+    //   0   degrees: bottom-to-top
+    //   90  degrees: left-to-right
+    //   180 degrees: top-to-bottom
+    //   270 degrees: right-to-left
+
     uint32 angle = 1; // degrees
     repeated fixed32 colors = 2; // 0xAARRGGBB
     repeated float positions = 3; // percent from 0 to 1
